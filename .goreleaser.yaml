@@ -1,0 +1,103 @@
+version: 2
+
+project_name: txhammer
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod verify
+
+builds:
+  - id: txhammer
+    main: ./cmd
+    binary: txhammer
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
+      - docs/*
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: 'New Features'
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Performance Improvements'
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: 'Other Changes'
+      order: 999
+
+release:
+  github:
+    owner: your-org
+    name: txhammer
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## TxHammer {{ .Version }}
+
+    StableNet stress testing tool for WBFT consensus.
+  footer: |
+    **Full Changelog**: https://github.com/your-org/txhammer/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Optional: Build Docker image
+# dockers:
+#   - image_templates:
+#       - "ghcr.io/your-org/txhammer:{{ .Tag }}"
+#       - "ghcr.io/your-org/txhammer:latest"
+#     dockerfile: Dockerfile
+#     build_flag_templates:
+#       - "--label=org.opencontainers.image.created={{.Date}}"
+#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+#       - "--label=org.opencontainers.image.version={{.Version}}"
