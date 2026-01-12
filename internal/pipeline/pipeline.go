@@ -78,7 +78,7 @@ func (p *Pipeline) Execute(ctx context.Context) (*Result, error) {
 	fmt.Println()
 	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
 	fmt.Println("║                       🔨 TxHammer 🔨                         ║")
-	fmt.Println("║              Blockchain Stress Testing Tool                   ║")
+	fmt.Println("║              StableNet Stress Testing Tool                     ║")
 	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
