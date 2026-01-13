@@ -46,9 +46,7 @@ type Monitor struct {
 	sampleMu      sync.Mutex
 
 	// Last displayed values for delta calculation
-	lastSent      int64
-	lastConfirmed int64
-	lastTime      time.Time
+	lastTime time.Time
 }
 
 // Snapshot represents a point-in-time view of metrics

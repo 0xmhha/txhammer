@@ -381,9 +381,8 @@ func TestBatcher_Reset(t *testing.T) {
 
 // retryMockClient implements Client with retry behavior
 type retryMockClient struct {
-	callCount       int
-	failUntilCount  int
-	batchSendResult []common.Hash
+	callCount      int
+	failUntilCount int
 }
 
 func (m *retryMockClient) BatchSendRawTransactions(ctx context.Context, rawTxs [][]byte) ([]common.Hash, error) {

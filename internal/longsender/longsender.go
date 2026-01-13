@@ -242,16 +242,6 @@ func (l *LongSender) getNonceAndIncrement(accountIdx int) uint64 {
 	return l.nonces[accountIdx].Add(1) - 1
 }
 
-// refreshNonce refreshes the nonce from the network
-func (l *LongSender) refreshNonce(ctx context.Context, accountIdx int) error {
-	nonce, err := l.client.PendingNonceAt(ctx, l.addresses[accountIdx])
-	if err != nil {
-		return err
-	}
-	l.nonces[accountIdx].Store(nonce)
-	return nil
-}
-
 // getCurrentTPS calculates the current TPS
 func (l *LongSender) getCurrentTPS() float64 {
 	elapsed := time.Since(l.startTime).Seconds()

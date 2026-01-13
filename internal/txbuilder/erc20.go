@@ -167,20 +167,3 @@ func buildERC20TransferData(to common.Address, amount *big.Int) []byte {
 	return data
 }
 
-// buildERC20BalanceOfData builds the calldata for ERC20 balanceOf(address)
-func buildERC20BalanceOfData(addr common.Address) []byte {
-	data := make([]byte, 4+32)
-	copy(data[0:4], ERC20BalanceOfSelector)
-	copy(data[4+12:4+32], addr.Bytes())
-	return data
-}
-
-// buildERC20ApproveData builds the calldata for ERC20 approve(address,uint256)
-func buildERC20ApproveData(spender common.Address, amount *big.Int) []byte {
-	data := make([]byte, 4+32+32)
-	copy(data[0:4], ERC20ApproveSelector)
-	copy(data[4+12:4+32], spender.Bytes())
-	amountBytes := amount.Bytes()
-	copy(data[4+32+(32-len(amountBytes)):4+64], amountBytes)
-	return data
-}

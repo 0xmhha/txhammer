@@ -95,7 +95,9 @@ func (p *Pipeline) Execute(ctx context.Context) (*Result, error) {
 		} else {
 			fmt.Printf("Prometheus metrics available at http://localhost:%d/metrics\n", p.cfg.MetricsPort)
 		}
-		defer metricsServer.Stop(ctx)
+		defer func() {
+			_ = metricsServer.Stop(ctx)
+		}()
 	}
 
 	// Handle special modes
@@ -353,7 +355,7 @@ func (p *Pipeline) build(ctx context.Context) error {
 
 	// Get keys and ensure nonces are set
 	keys := p.wallet.SubKeys()
-	if p.nonces == nil || len(p.nonces) == 0 {
+	if len(p.nonces) == 0 {
 		p.nonces = make([]uint64, len(keys))
 		for i, key := range keys {
 			addr := crypto.PubkeyToAddress(key.PublicKey)
