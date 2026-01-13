@@ -330,6 +330,17 @@ func (p *Pipeline) build(ctx context.Context) error {
 		}
 	}
 
+	// Apply transfer value from config (default: 1 wei)
+	if p.cfg.Value != "" {
+		value, ok := new(big.Int).SetString(p.cfg.Value, 10)
+		if ok && value.Sign() >= 0 {
+			builderCfg.Value = value
+		}
+	}
+	if builderCfg.Value == nil {
+		builderCfg.Value = big.NewInt(1)
+	}
+
 	// Create factory
 	factory := txbuilder.NewFactory(builderCfg, p.client)
 

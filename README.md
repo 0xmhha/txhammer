@@ -185,6 +185,36 @@ Analyzes existing blocks without sending transactions. Useful for measuring hist
 
 ## Advanced Usage
 
+### Custom Transfer Value
+
+By default, each transfer sends 1 wei. You can customize the transfer value:
+
+```bash
+# Transfer 0.001 ETH per transaction
+./build/txhammer \
+  --url http://localhost:8545 \
+  --private-key 0xYOUR_PRIVATE_KEY \
+  --value 1000000000000000 \
+  --transactions 100
+
+# Transfer 0 wei (gas cost only)
+./build/txhammer \
+  --url http://localhost:8545 \
+  --private-key 0xYOUR_PRIVATE_KEY \
+  --value 0 \
+  --transactions 100
+```
+
+**Common value units:**
+| Amount | Wei Value |
+|--------|-----------|
+| 1 wei | `1` |
+| 1 Gwei | `1000000000` |
+| 0.001 ETH | `1000000000000000` |
+| 0.01 ETH | `10000000000000000` |
+| 0.1 ETH | `100000000000000000` |
+| 1 ETH | `1000000000000000000` |
+
 ### Streaming Mode
 
 Uses streaming mode with rate limiting instead of batch sending. Suitable for sustained load testing.
@@ -300,6 +330,7 @@ Access metrics at `http://localhost:9090/metrics`. Available metrics:
 | `--chain-id` | (auto) | Chain ID (auto-detected if not specified) |
 | `--gas-limit` | `21000` | Gas limit per transaction |
 | `--gas-price` | (auto) | Gas price (auto-detected if not specified) |
+| `--value` | `1` | Transfer value in wei (default: 1 wei) |
 
 ### Mode-Specific Settings
 
@@ -433,9 +464,11 @@ reports/
 Ensure the master account has sufficient balance. Required funds are calculated as:
 
 ```
-Required = (gas_limit × gas_price × txs_per_account × 1.2) × sub_accounts
+Required = ((gas_limit × gas_price + value) × txs_per_account × 1.2) × sub_accounts
          + (21000 × gas_price × sub_accounts)  // distribution tx gas
 ```
+
+Note: The `--value` flag affects the required funds. Higher transfer values require more balance per sub-account.
 
 ### "nonce too low" Error
 

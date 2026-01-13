@@ -88,6 +88,7 @@ type BuilderConfig struct {
 	GasPrice  *big.Int
 	GasTipCap *big.Int
 	GasFeeCap *big.Int
+	Value     *big.Int // Transfer value (default: 1 wei)
 }
 
 // ContractCallRequest represents a contract call request

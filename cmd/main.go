@@ -54,6 +54,7 @@ func registerFlags(cmd *cobra.Command) {
 	flags.Uint64Var(&cfg.ChainID, "chain-id", 0, "Chain ID (auto-detect if not specified)")
 	flags.Uint64Var(&cfg.GasLimit, "gas-limit", 21000, "Gas limit per transaction")
 	flags.StringVar(&cfg.GasPrice, "gas-price", "", "Gas price (auto if not specified)")
+	flags.StringVar(&cfg.Value, "value", "1", "Transfer value in wei (default: 1)")
 
 	// Fee Delegation mode
 	flags.StringVar(&cfg.FeePayerKey, "fee-payer-key", "", "Fee payer private key for FEE_DELEGATION mode")

@@ -90,13 +90,19 @@ func (b *TransferBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKey, n
 				to = from
 			}
 
+			// Determine transfer value (default: 1 wei)
+			value := b.config.Value
+			if value == nil {
+				value = big.NewInt(1)
+			}
+
 			// Create legacy transaction (type 0) for better compatibility
 			tx := types.NewTx(&types.LegacyTx{
 				Nonce:    nonce,
 				GasPrice: gasFeeCap, // Use gasFeeCap as legacy gas price
 				Gas:      gasLimit,
 				To:       &to,
-				Value:    big.NewInt(1), // Transfer 1 wei
+				Value:    value,
 				Data:     nil,
 			})
 

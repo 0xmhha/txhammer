@@ -40,6 +40,7 @@ type Config struct {
 	ChainID  uint64
 	GasLimit uint64
 	GasPrice string
+	Value    string // Transfer value in wei (default: 1)
 
 	// Fee Delegation mode
 	FeePayerKey string
