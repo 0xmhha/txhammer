@@ -1,5 +1,6 @@
 # Binaries
 build/
+txhammer
 *.exe
 *.exe~
 *.dll
@@ -29,6 +30,7 @@ Thumbs.db
 
 # Reports (generated output)
 reports/
+stress-test-reports/
 
 # Environment files
 .env
@@ -38,3 +40,6 @@ reports/
 # Temporary files
 tmp/
 temp/
+
+# Vendor (use go.mod instead)
+vendor/

@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/piatoss3612/txhammer/internal/client"
-	"github.com/piatoss3612/txhammer/internal/config"
-	"github.com/piatoss3612/txhammer/internal/pipeline"
-	"github.com/piatoss3612/txhammer/internal/wallet"
+	"github.com/0xmhha/txhammer/internal/client"
+	"github.com/0xmhha/txhammer/internal/config"
+	"github.com/0xmhha/txhammer/internal/pipeline"
+	"github.com/0xmhha/txhammer/internal/wallet"
 )
 
 const (
@@ -228,9 +228,9 @@ func TestPipelineDryRun(t *testing.T) {
 	t.Logf("Stages completed: %d", len(result.StageResults))
 
 	for _, sr := range result.StageResults {
-		status := "✓"
+		status := "[OK]"
 		if !sr.Success {
-			status = "✗"
+			status = "[FAIL]"
 		}
 		t.Logf("  %s %s: %s", status, sr.Stage.String(), sr.Duration)
 	}

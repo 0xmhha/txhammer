@@ -78,7 +78,7 @@ func (b *ContractDeployBuilder) Build(ctx context.Context, keys []*ecdsa.Private
 		totalTxs += n
 	}
 
-	fmt.Printf("\n📝 Building Contract Deploy Transactions 📝\n\n")
+	fmt.Printf("\nBuilding Contract Deploy Transactions\n\n")
 	bar := progressbar.Default(int64(totalTxs), "txs built")
 
 	signedTxs := make([]*SignedTx, 0, totalTxs)
@@ -125,7 +125,7 @@ func (b *ContractDeployBuilder) Build(ctx context.Context, keys []*ecdsa.Private
 		}
 	}
 
-	fmt.Printf("\n✅ Successfully built %d contract deploy transactions\n", len(signedTxs))
+	fmt.Printf("\n[OK] Successfully built %d contract deploy transactions\n", len(signedTxs))
 	return signedTxs, nil
 }
 
@@ -209,7 +209,7 @@ func (b *ContractCallBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKe
 		totalTxs += n
 	}
 
-	fmt.Printf("\n📝 Building Contract Call Transactions 📝\n\n")
+	fmt.Printf("\nBuilding Contract Call Transactions\n\n")
 	fmt.Printf("Contract: %s\n", b.contractAddr.Hex())
 	fmt.Printf("Method: %s\n", b.methodSig)
 	bar := progressbar.Default(int64(totalTxs), "txs built")
@@ -257,7 +257,7 @@ func (b *ContractCallBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKe
 		}
 	}
 
-	fmt.Printf("\n✅ Successfully built %d contract call transactions\n", len(signedTxs))
+	fmt.Printf("\n[OK] Successfully built %d contract call transactions\n", len(signedTxs))
 	return signedTxs, nil
 }
 

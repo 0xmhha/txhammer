@@ -3,7 +3,7 @@ package pipeline
 import (
 	"time"
 
-	"github.com/piatoss3612/txhammer/internal/collector"
+	"github.com/0xmhha/txhammer/internal/collector"
 )
 
 // Stage represents a pipeline stage

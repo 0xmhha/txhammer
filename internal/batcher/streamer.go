@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/piatoss3612/txhammer/internal/txbuilder"
+	"github.com/0xmhha/txhammer/internal/txbuilder"
 	"github.com/schollz/progressbar/v3"
 	"golang.org/x/time/rate"
 )
@@ -84,7 +84,7 @@ func (s *Streamer) Stream(ctx context.Context, txs []*txbuilder.SignedTx) (*Stre
 		return &StreamResult{}, nil
 	}
 
-	fmt.Printf("\n🌊 Starting Streaming Transaction Sending 🌊\n\n")
+	fmt.Printf("\nStarting Streaming Transaction Sending\n\n")
 	fmt.Printf("Total transactions: %d\n", len(txs))
 	fmt.Printf("Rate limit: %.0f tx/s\n", s.config.Rate)
 	fmt.Printf("Workers: %d\n", s.config.Workers)
@@ -187,7 +187,7 @@ func (s *Streamer) buildResult(results []*TxResult, duration time.Duration) *Str
 
 // printSummary prints the streaming summary
 func (s *Streamer) printSummary(result *StreamResult) {
-	fmt.Printf("\n📊 Streaming Summary 📊\n\n")
+	fmt.Printf("\nStreaming Summary\n\n")
 	fmt.Printf("Total transactions: %d\n", result.TotalTxs)
 	fmt.Printf("Successful: %d (%.2f%%)\n", result.SuccessCount,
 		float64(result.SuccessCount)/float64(result.TotalTxs)*100)
@@ -197,7 +197,7 @@ func (s *Streamer) printSummary(result *StreamResult) {
 	fmt.Printf("Actual throughput: %.2f tx/s\n", result.TxPerSecond)
 
 	if len(result.FailedTxs) > 0 {
-		fmt.Printf("\n⚠️  Failed Transactions: %d\n", len(result.FailedTxs))
+		fmt.Printf("\n[WARN] Failed Transactions: %d\n", len(result.FailedTxs))
 		showCount := 5
 		if len(result.FailedTxs) < showCount {
 			showCount = len(result.FailedTxs)

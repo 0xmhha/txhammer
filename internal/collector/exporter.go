@@ -112,10 +112,14 @@ type JSONGas struct {
 
 // JSONBlocks is a JSON-serializable block metrics
 type JSONBlocks struct {
-	Observed       int     `json:"observed"`
-	AvgBlockTime   string  `json:"avg_block_time"`
-	AvgTxPerBlock  float64 `json:"avg_tx_per_block"`
-	AvgUtilization float64 `json:"avg_utilization"`
+	Observed         int     `json:"observed"`
+	AvgBlockTime     string  `json:"avg_block_time"`
+	AvgTxPerBlock    float64 `json:"avg_tx_per_block"`
+	AvgUtilization   float64 `json:"avg_utilization"`
+	FirstBlockWithTx uint64  `json:"first_block_with_tx,omitempty"`
+	LastBlockWithTx  uint64  `json:"last_block_with_tx,omitempty"`
+	BlockSpan        int     `json:"block_span,omitempty"`
+	BlockBasedTPS    float64 `json:"block_based_tps,omitempty"`
 }
 
 // createJSONReport creates a JSON-serializable report
@@ -149,10 +153,14 @@ func (e *Exporter) createJSONReport(report *Report) *JSONReport {
 			AverageUsed: report.Metrics.AvgGasUsed,
 		},
 		Blocks: JSONBlocks{
-			Observed:       report.Metrics.BlocksObserved,
-			AvgBlockTime:   report.Metrics.AvgBlockTime.String(),
-			AvgTxPerBlock:  report.Metrics.AvgTxPerBlock,
-			AvgUtilization: report.Metrics.AvgUtilization,
+			Observed:         report.Metrics.BlocksObserved,
+			AvgBlockTime:     report.Metrics.AvgBlockTime.String(),
+			AvgTxPerBlock:    report.Metrics.AvgTxPerBlock,
+			AvgUtilization:   report.Metrics.AvgUtilization,
+			FirstBlockWithTx: report.Metrics.FirstBlockWithTx,
+			LastBlockWithTx:  report.Metrics.LastBlockWithTx,
+			BlockSpan:        report.Metrics.BlockSpan,
+			BlockBasedTPS:    report.Metrics.BlockBasedTPS,
 		},
 	}
 
@@ -216,6 +224,10 @@ func (e *Exporter) exportSummaryCSV(report *Report, filename string) error {
 		{"Success Rate", fmt.Sprintf("%.2f%%", report.Metrics.SuccessRate)},
 		{"TPS (Sent)", fmt.Sprintf("%.2f", report.Metrics.TPS)},
 		{"TPS (Confirmed)", fmt.Sprintf("%.2f", report.Metrics.ConfirmedTPS)},
+		{"Block TPS", fmt.Sprintf("%.2f", report.Metrics.BlockBasedTPS)},
+		{"First Block", fmt.Sprintf("%d", report.Metrics.FirstBlockWithTx)},
+		{"Last Block", fmt.Sprintf("%d", report.Metrics.LastBlockWithTx)},
+		{"Block Span", fmt.Sprintf("%d", report.Metrics.BlockSpan)},
 		{"Avg Latency", report.Metrics.AvgLatency.String()},
 		{"Min Latency", report.Metrics.MinLatency.String()},
 		{"Max Latency", report.Metrics.MaxLatency.String()},

@@ -91,7 +91,7 @@ func (b *ERC20TransferBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateK
 		totalTxs += n
 	}
 
-	fmt.Printf("\n📝 Building ERC20 Transfer Transactions 📝\n\n")
+	fmt.Printf("\nBuilding ERC20 Transfer Transactions\n\n")
 	fmt.Printf("Token: %s\n", b.tokenAddr.Hex())
 	bar := progressbar.Default(int64(totalTxs), "txs built")
 
@@ -147,7 +147,7 @@ func (b *ERC20TransferBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateK
 		}
 	}
 
-	fmt.Printf("\n✅ Successfully built %d ERC20 transfer transactions\n", len(signedTxs))
+	fmt.Printf("\n[OK] Successfully built %d ERC20 transfer transactions\n", len(signedTxs))
 	return signedTxs, nil
 }
 

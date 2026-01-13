@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/piatoss3612/txhammer/internal/config"
+	"github.com/0xmhha/txhammer/internal/config"
 )
 
 // TestConfig creates a valid test configuration
