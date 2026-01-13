@@ -119,6 +119,7 @@ type JSONBlocks struct {
 	FirstBlockWithTx uint64  `json:"first_block_with_tx,omitempty"`
 	LastBlockWithTx  uint64  `json:"last_block_with_tx,omitempty"`
 	BlockSpan        int     `json:"block_span,omitempty"`
+	BlocksWithOurTx  int     `json:"blocks_with_our_tx,omitempty"`
 	BlockBasedTPS    float64 `json:"block_based_tps,omitempty"`
 }
 
@@ -160,6 +161,7 @@ func (e *Exporter) createJSONReport(report *Report) *JSONReport {
 			FirstBlockWithTx: report.Metrics.FirstBlockWithTx,
 			LastBlockWithTx:  report.Metrics.LastBlockWithTx,
 			BlockSpan:        report.Metrics.BlockSpan,
+			BlocksWithOurTx:  report.Metrics.BlocksWithOurTx,
 			BlockBasedTPS:    report.Metrics.BlockBasedTPS,
 		},
 	}
@@ -224,10 +226,11 @@ func (e *Exporter) exportSummaryCSV(report *Report, filename string) error {
 		{"Success Rate", fmt.Sprintf("%.2f%%", report.Metrics.SuccessRate)},
 		{"TPS (Sent)", fmt.Sprintf("%.2f", report.Metrics.TPS)},
 		{"TPS (Confirmed)", fmt.Sprintf("%.2f", report.Metrics.ConfirmedTPS)},
-		{"Block TPS", fmt.Sprintf("%.2f", report.Metrics.BlockBasedTPS)},
+		{"Block-Based TPS", fmt.Sprintf("%.2f", report.Metrics.BlockBasedTPS)},
 		{"First Block", fmt.Sprintf("%d", report.Metrics.FirstBlockWithTx)},
 		{"Last Block", fmt.Sprintf("%d", report.Metrics.LastBlockWithTx)},
 		{"Block Span", fmt.Sprintf("%d", report.Metrics.BlockSpan)},
+		{"Blocks w/ Our Tx", fmt.Sprintf("%d", report.Metrics.BlocksWithOurTx)},
 		{"Avg Latency", report.Metrics.AvgLatency.String()},
 		{"Min Latency", report.Metrics.MinLatency.String()},
 		{"Max Latency", report.Metrics.MaxLatency.String()},

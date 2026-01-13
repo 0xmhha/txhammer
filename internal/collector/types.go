@@ -104,7 +104,8 @@ type Metrics struct {
 	FirstBlockWithTx uint64  // First block containing our transactions
 	LastBlockWithTx  uint64  // Last block containing our transactions
 	BlockSpan        int     // Number of blocks (last - first + 1)
-	BlockBasedTPS    float64 // TotalConfirmed / BlockSpan (real block throughput)
+	BlocksWithOurTx  int     // Count of blocks that contain our transactions
+	BlockBasedTPS    float64 // TotalConfirmed / (BlocksWithOurTx × AvgBlockTime)
 
 	// Success rate
 	SuccessRate     float64

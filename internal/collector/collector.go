@@ -388,11 +388,13 @@ func (c *Collector) buildReport(report *Report) *Report {
 	}
 
 	// Calculate block-based TPS (transactions per block span)
-	// Find first and last blocks containing our transactions
+	// Find first and last blocks containing our transactions, and count blocks with our txs
 	var firstBlock, lastBlock uint64
 	var foundFirst bool
+	blocksWithOurTx := 0
 	for _, block := range c.blocks {
 		if block.OurTxCount > 0 {
+			blocksWithOurTx++
 			if !foundFirst {
 				firstBlock = block.Number
 				foundFirst = true
@@ -405,9 +407,12 @@ func (c *Collector) buildReport(report *Report) *Report {
 		report.Metrics.FirstBlockWithTx = firstBlock
 		report.Metrics.LastBlockWithTx = lastBlock
 		report.Metrics.BlockSpan = int(lastBlock-firstBlock) + 1
+		report.Metrics.BlocksWithOurTx = blocksWithOurTx
 
-		if report.Metrics.BlockSpan > 0 {
-			report.Metrics.BlockBasedTPS = float64(report.Metrics.TotalConfirmed) / float64(report.Metrics.BlockSpan)
+		// Calculate TPS based on blocks that contain our transactions
+		// TPS = TotalConfirmed / (BlocksWithOurTx × AvgBlockTime)
+		if blocksWithOurTx > 0 && report.Metrics.AvgBlockTime.Seconds() > 0 {
+			report.Metrics.BlockBasedTPS = float64(report.Metrics.TotalConfirmed) / (float64(blocksWithOurTx) * report.Metrics.AvgBlockTime.Seconds())
 		}
 	}
 
@@ -546,7 +551,8 @@ func (c *Collector) printSummary(report *Report) {
 			fmt.Printf("  First Block:     #%d\n", report.Metrics.FirstBlockWithTx)
 			fmt.Printf("  Last Block:      #%d\n", report.Metrics.LastBlockWithTx)
 			fmt.Printf("  Block Span:      %d blocks\n", report.Metrics.BlockSpan)
-			fmt.Printf("  Block TPS:       %.2f tx/block\n", report.Metrics.BlockBasedTPS)
+			fmt.Printf("  Blocks w/ Tx:    %d blocks\n", report.Metrics.BlocksWithOurTx)
+			fmt.Printf("  Block-Based TPS: %.2f tx/s\n", report.Metrics.BlockBasedTPS)
 		}
 	}
 
