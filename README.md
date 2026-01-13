@@ -1,10 +1,14 @@
 # TxHammer
 
+![Go Version](https://img.shields.io/badge/Go-1.24%20%7C%20go1.24.11-00ADD8?logo=go)
+![Consensus](https://img.shields.io/badge/Consensus-QBFT--based%20WBFT-4c1)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue)
+
 A stress testing CLI tool for StableNet L1 blockchain.
 
 ## Overview
 
-TxHammer is a stress testing tool designed to measure the performance of StableNet (EVM-compatible PoA blockchain) networks. It generates and sends large volumes of transactions to measure performance metrics such as TPS, gas utilization, and latency.
+TxHammer is a stress testing tool designed to measure the performance of StableNet (EVM-compatible blockchain that uses a QBFT-based WBFT consensus) networks. It generates and sends large volumes of transactions to measure performance metrics such as TPS, gas utilization, and latency.
 
 ## Features
 
@@ -46,7 +50,7 @@ TxHammer is a stress testing tool designed to measure the performance of StableN
 
 ### Requirements
 
-- Go 1.21 or higher
+- Go 1.24 (tested with toolchain `go1.24.11` as defined in `go.mod`)
 - Access to a StableNet node (HTTP/WebSocket RPC)
 
 ### Build
@@ -495,4 +499,4 @@ Previous test transactions may still be processing. Wait a moment and try again,
 
 ## License
 
-Apache-2.0
+This project is licensed under the [Apache License 2.0](LICENSE).
