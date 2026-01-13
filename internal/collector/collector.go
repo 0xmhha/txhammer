@@ -91,7 +91,7 @@ func (c *Collector) Collect(ctx context.Context) (*Report, error) {
 		return NewReport("empty"), nil
 	}
 
-	fmt.Printf("\n📥 Starting Receipt Collection 📥\n\n")
+	fmt.Printf("\nStarting Receipt Collection\n\n")
 	fmt.Printf("Total transactions to collect: %d\n", totalTxs)
 	fmt.Printf("Poll interval: %s\n", c.config.PollInterval)
 	fmt.Printf("Confirm timeout: %s\n\n", c.config.ConfirmTimeout)
@@ -387,6 +387,30 @@ func (c *Collector) buildReport(report *Report) *Report {
 		report.Metrics.AvgUtilization = totalUtilization / float64(len(c.blocks))
 	}
 
+	// Calculate block-based TPS (transactions per block span)
+	// Find first and last blocks containing our transactions
+	var firstBlock, lastBlock uint64
+	var foundFirst bool
+	for _, block := range c.blocks {
+		if block.OurTxCount > 0 {
+			if !foundFirst {
+				firstBlock = block.Number
+				foundFirst = true
+			}
+			lastBlock = block.Number
+		}
+	}
+
+	if foundFirst && lastBlock >= firstBlock {
+		report.Metrics.FirstBlockWithTx = firstBlock
+		report.Metrics.LastBlockWithTx = lastBlock
+		report.Metrics.BlockSpan = int(lastBlock-firstBlock) + 1
+
+		if report.Metrics.BlockSpan > 0 {
+			report.Metrics.BlockBasedTPS = float64(report.Metrics.TotalConfirmed) / float64(report.Metrics.BlockSpan)
+		}
+	}
+
 	return report
 }
 
@@ -473,7 +497,7 @@ func (c *Collector) buildLatencyHistogram(latencies []time.Duration) map[string]
 
 // printSummary prints the collection summary
 func (c *Collector) printSummary(report *Report) {
-	fmt.Printf("\n📊 Collection Summary 📊\n\n")
+	fmt.Printf("\nCollection Summary\n\n")
 
 	// Transaction summary
 	fmt.Printf("Transactions:\n")
@@ -515,6 +539,15 @@ func (c *Collector) printSummary(report *Report) {
 		fmt.Printf("  Avg Block Time:  %s\n", report.Metrics.AvgBlockTime)
 		fmt.Printf("  Avg Tx/Block:    %.2f\n", report.Metrics.AvgTxPerBlock)
 		fmt.Printf("  Avg Utilization: %.2f%%\n", report.Metrics.AvgUtilization)
+
+		// Block-based TPS (real throughput)
+		if report.Metrics.BlockSpan > 0 {
+			fmt.Printf("\nBlock-Based Throughput:\n")
+			fmt.Printf("  First Block:     #%d\n", report.Metrics.FirstBlockWithTx)
+			fmt.Printf("  Last Block:      #%d\n", report.Metrics.LastBlockWithTx)
+			fmt.Printf("  Block Span:      %d blocks\n", report.Metrics.BlockSpan)
+			fmt.Printf("  Block TPS:       %.2f tx/block\n", report.Metrics.BlockBasedTPS)
+		}
 	}
 
 	// Latency histogram
@@ -531,7 +564,7 @@ func (c *Collector) printSummary(report *Report) {
 
 	// Errors
 	if len(report.ErrorSummary) > 0 {
-		fmt.Printf("\n⚠️  Errors:\n")
+		fmt.Printf("\n[WARN] Errors:\n")
 		for errMsg, count := range report.ErrorSummary {
 			if len(errMsg) > 50 {
 				errMsg = errMsg[:47] + "..."

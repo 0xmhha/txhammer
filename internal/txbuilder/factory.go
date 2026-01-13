@@ -6,7 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/piatoss3612/txhammer/internal/config"
+	"github.com/0xmhha/txhammer/internal/config"
 )
 
 // Factory creates builders based on configuration
@@ -85,6 +85,25 @@ func (f *Factory) CreateBuilder(mode config.Mode, opts ...BuilderOption) (Builde
 		}
 		return builder, nil
 
+	case config.ModeERC721Mint:
+		builder, err := NewERC721MintBuilder(f.cfg, f.estimator)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create ERC721 mint builder: %w", err)
+		}
+		if options.nftContract != (common.Address{}) {
+			builder.WithContract(options.nftContract)
+		}
+		if options.tokenURI != "" {
+			builder.WithTokenURI(options.tokenURI)
+		}
+		if options.nftName != "" {
+			builder.WithNFTName(options.nftName)
+		}
+		if options.nftSymbol != "" {
+			builder.WithNFTSymbol(options.nftSymbol)
+		}
+		return builder, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported mode: %s", mode)
 	}
@@ -103,6 +122,11 @@ type builderOptions struct {
 	methodArgs   []interface{}
 	abiJSON      string
 	amount       *big.Int
+	// ERC721 options
+	nftContract common.Address
+	tokenURI    string
+	nftName     string
+	nftSymbol   string
 }
 
 // WithRecipient sets the recipient address
@@ -159,5 +183,33 @@ func WithABI(abiJSON string) BuilderOption {
 func WithAmount(amount *big.Int) BuilderOption {
 	return func(o *builderOptions) {
 		o.amount = amount
+	}
+}
+
+// WithNFTContract sets the NFT contract address
+func WithNFTContract(addr common.Address) BuilderOption {
+	return func(o *builderOptions) {
+		o.nftContract = addr
+	}
+}
+
+// WithTokenURI sets the token URI for NFT minting
+func WithTokenURI(uri string) BuilderOption {
+	return func(o *builderOptions) {
+		o.tokenURI = uri
+	}
+}
+
+// WithNFTName sets the NFT collection name
+func WithNFTName(name string) BuilderOption {
+	return func(o *builderOptions) {
+		o.nftName = name
+	}
+}
+
+// WithNFTSymbol sets the NFT collection symbol
+func WithNFTSymbol(symbol string) BuilderOption {
+	return func(o *builderOptions) {
+		o.nftSymbol = symbol
 	}
 }

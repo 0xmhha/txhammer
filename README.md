@@ -13,17 +13,29 @@ TxHammer is a stress testing tool designed to measure the performance of StableN
   - Fee Delegation transactions (Type 0x16) - StableNet specific
   - Smart contract deployment/calls
   - ERC20 token transfers
+  - ERC721 NFT minting
 
 - **High-Performance Send Engine**
   - Efficient bulk sending via JSON-RPC batch requests
   - Streaming mode with rate limiting
   - Concurrency control and retry logic
+  - **Long Sender mode** for duration-based continuous testing
 
 - **Comprehensive Metrics Collection**
   - TPS (sent/confirmed)
   - Latency distribution (avg, min, max, P50, P95, P99)
   - Gas usage and costs
   - Block-level statistics
+  - **Prometheus metrics endpoint** for monitoring integration
+
+- **Block Analysis**
+  - Analyze existing blocks without sending transactions
+  - Calculate historical TPS from block data
+  - Export analysis results to CSV
+
+- **Real-time Monitoring**
+  - Live TPS display with rolling window calculation
+  - Prometheus metrics for Grafana integration
 
 - **Multiple Output Formats**
   - Real-time console output
@@ -120,6 +132,57 @@ Repeatedly calls a method on a specific contract.
   --gas-limit 100000
 ```
 
+### ERC721 NFT Minting Test
+
+Tests NFT minting performance. Automatically deploys an NFT contract if no contract address is specified.
+
+```bash
+./build/txhammer \
+  --url http://localhost:8545 \
+  --private-key 0xYOUR_PRIVATE_KEY \
+  --mode ERC721_MINT \
+  --nft-name "TestNFT" \
+  --nft-symbol "TNFT" \
+  --token-uri "https://example.com/nft/" \
+  --sub-accounts 5 \
+  --transactions 500 \
+  --gas-limit 150000
+```
+
+### Long Sender Mode (Duration-Based Testing)
+
+Continuously sends transactions for a specified duration at a target TPS rate. Ideal for sustained load testing.
+
+```bash
+./build/txhammer \
+  --url http://localhost:8545 \
+  --private-key 0xYOUR_PRIVATE_KEY \
+  --mode LONG_SENDER \
+  --duration 10m \
+  --tps 500 \
+  --workers 20 \
+  --sub-accounts 10
+```
+
+### Block Analyzer Mode
+
+Analyzes existing blocks without sending transactions. Useful for measuring historical network performance.
+
+```bash
+# Analyze the last 100 blocks
+./build/txhammer \
+  --url http://localhost:8545 \
+  --mode ANALYZE_BLOCKS \
+  --block-range 100
+
+# Analyze a specific block range
+./build/txhammer \
+  --url http://localhost:8545 \
+  --mode ANALYZE_BLOCKS \
+  --block-start 1000 \
+  --block-end 2000
+```
+
 ## Advanced Usage
 
 ### Streaming Mode
@@ -182,6 +245,35 @@ Sends transactions without collecting results. Useful for testing maximum send t
   --transactions 1000
 ```
 
+### Prometheus Metrics
+
+Enable Prometheus metrics endpoint for integration with monitoring systems like Grafana.
+
+```bash
+./build/txhammer \
+  --url http://localhost:8545 \
+  --private-key 0xYOUR_PRIVATE_KEY \
+  --metrics \
+  --metrics-port 9090 \
+  --mode LONG_SENDER \
+  --duration 1h \
+  --tps 100
+```
+
+Access metrics at `http://localhost:9090/metrics`. Available metrics:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `txhammer_tx_sent_total` | Counter | Total transactions sent |
+| `txhammer_tx_confirmed_total` | Counter | Total transactions confirmed |
+| `txhammer_tx_failed_total` | Counter | Total transactions failed |
+| `txhammer_tx_latency_seconds` | Histogram | Transaction latency distribution |
+| `txhammer_current_tps` | Gauge | Current TPS (rolling window) |
+| `txhammer_confirmed_tps` | Gauge | Confirmed TPS |
+| `txhammer_pending_tx_count` | Gauge | Pending transaction count |
+| `txhammer_gas_used_total` | Counter | Total gas used |
+| `txhammer_stage_duration_seconds` | Histogram | Pipeline stage durations |
+
 ## Command Line Flags
 
 ### Required Settings
@@ -214,9 +306,33 @@ Sends transactions without collecting results. Useful for testing maximum send t
 | Flag | Description |
 |------|-------------|
 | `--fee-payer-key` | Fee Delegation mode: Fee payer's private key |
-| `--contract` | Contract/ERC20 mode: Target contract address |
+| `--contract` | Contract/ERC20/ERC721 mode: Target contract address |
 | `--method` | Contract Call mode: Method signature |
 | `--args` | Contract Call mode: Method arguments (JSON array) |
+
+### Long Sender Mode Settings
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--duration` | - | Test duration (e.g., `5m`, `1h`, `24h`) |
+| `--tps` | `100` | Target transactions per second |
+| `--workers` | `10` | Number of concurrent workers |
+
+### Block Analyzer Mode Settings
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--block-start` | `0` | Start block number |
+| `--block-end` | `0` | End block number (0 = latest) |
+| `--block-range` | `100` | Number of recent blocks to analyze |
+
+### ERC721 Mint Mode Settings
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--nft-name` | `TxHammerNFT` | NFT collection name |
+| `--nft-symbol` | `TXHNFT` | NFT collection symbol |
+| `--token-uri` | `https://txhammer.io/nft/` | Base token URI |
 
 ### Execution Options
 
@@ -237,6 +353,13 @@ Sends transactions without collecting results. Useful for testing maximum send t
 | `--output` | - | Output JSON file path (legacy) |
 | `--verbose` | `false` | Enable verbose logging |
 
+### Monitoring Settings
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--metrics` | `false` | Enable Prometheus metrics endpoint |
+| `--metrics-port` | `9090` | Prometheus metrics port |
+
 ### Advanced Settings
 
 | Flag | Default | Description |
@@ -253,6 +376,9 @@ Sends transactions without collecting results. Useful for testing maximum send t
 | `CONTRACT_DEPLOY` | 200000 | SimpleStorage contract deployment |
 | `CONTRACT_CALL` | 100000 | Call specified contract method |
 | `ERC20_TRANSFER` | 65000 | ERC20 token transfer |
+| `ERC721_MINT` | 150000 | ERC721 NFT minting |
+| `LONG_SENDER` | 21000 | Duration-based continuous sending (requires `--duration`) |
+| `ANALYZE_BLOCKS` | - | Block analysis only (no transactions sent) |
 
 ## Output & Reports
 

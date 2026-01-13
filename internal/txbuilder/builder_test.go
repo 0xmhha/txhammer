@@ -8,7 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/piatoss3612/txhammer/internal/config"
+	"github.com/0xmhha/txhammer/internal/config"
 )
 
 const (

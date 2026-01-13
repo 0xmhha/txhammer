@@ -9,13 +9,17 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/piatoss3612/txhammer/internal/batcher"
-	"github.com/piatoss3612/txhammer/internal/client"
-	"github.com/piatoss3612/txhammer/internal/collector"
-	"github.com/piatoss3612/txhammer/internal/config"
-	"github.com/piatoss3612/txhammer/internal/distributor"
-	"github.com/piatoss3612/txhammer/internal/txbuilder"
-	"github.com/piatoss3612/txhammer/internal/wallet"
+	"github.com/0xmhha/txhammer/internal/analyzer"
+	"github.com/0xmhha/txhammer/internal/batcher"
+	"github.com/0xmhha/txhammer/internal/client"
+	"github.com/0xmhha/txhammer/internal/collector"
+	"github.com/0xmhha/txhammer/internal/config"
+	"github.com/0xmhha/txhammer/internal/distributor"
+	"github.com/0xmhha/txhammer/internal/longsender"
+	"github.com/0xmhha/txhammer/internal/metrics"
+	"github.com/0xmhha/txhammer/internal/monitor"
+	"github.com/0xmhha/txhammer/internal/txbuilder"
+	"github.com/0xmhha/txhammer/internal/wallet"
 )
 
 // Pipeline orchestrates the stress test execution
@@ -77,10 +81,31 @@ func (p *Pipeline) Execute(ctx context.Context) (*Result, error) {
 
 	fmt.Println()
 	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
-	fmt.Println("║                       🔨 TxHammer 🔨                         ║")
+	fmt.Println("║                          TxHammer                             ║")
 	fmt.Println("║              StableNet Stress Testing Tool                     ║")
 	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 	fmt.Println()
+
+	// Start Prometheus metrics server if enabled
+	var metricsServer *metrics.Metrics
+	if p.cfg.MetricsEnabled {
+		metricsServer = metrics.NewMetrics("txhammer")
+		if err := metricsServer.Start(ctx, p.cfg.MetricsPort); err != nil {
+			fmt.Printf("[WARN] Failed to start metrics server: %v\n", err)
+		} else {
+			fmt.Printf("Prometheus metrics available at http://localhost:%d/metrics\n", p.cfg.MetricsPort)
+		}
+		defer metricsServer.Stop(ctx)
+	}
+
+	// Handle special modes
+	mode := p.cfg.GetMode()
+	switch mode {
+	case config.ModeAnalyzeBlocks:
+		return p.executeAnalyzeBlocks(ctx, result)
+	case config.ModeLongSender:
+		return p.executeLongSender(ctx, result, metricsServer)
+	}
 
 	// Stage 1: Initialize
 	if err := p.runStage(ctx, result, StageInit, p.initialize); err != nil {
@@ -101,7 +126,7 @@ func (p *Pipeline) Execute(ctx context.Context) (*Result, error) {
 
 	// Dry run - stop here
 	if p.runCfg.DryRun {
-		fmt.Println("\n🏁 Dry run complete - transactions built but not sent")
+		fmt.Println("\nDry run complete - transactions built but not sent")
 		result.Finalize()
 		return result, nil
 	}
@@ -150,10 +175,10 @@ func (p *Pipeline) runStage(ctx context.Context, result *Result, stage Stage, fn
 	if err != nil {
 		sr.Error = err
 		sr.Message = fmt.Sprintf("Failed: %v", err)
-		fmt.Printf("\n❌ Stage %s failed: %v\n", stage.String(), err)
+		fmt.Printf("\n[FAIL] Stage %s failed: %v\n", stage.String(), err)
 	} else {
 		sr.Message = fmt.Sprintf("Completed in %s", duration)
-		fmt.Printf("\n✅ Stage %s completed in %s\n", stage.String(), duration)
+		fmt.Printf("\n[OK] Stage %s completed in %s\n", stage.String(), duration)
 	}
 
 	result.AddStageResult(sr)
@@ -176,7 +201,7 @@ func (p *Pipeline) initialize(ctx context.Context) error {
 	}
 
 	// Display configuration
-	fmt.Printf("\n📋 Configuration:\n")
+	fmt.Printf("\nConfiguration:\n")
 	fmt.Printf("  URL:            %s\n", p.cfg.URL)
 	fmt.Printf("  Chain ID:       %d\n", p.cfg.ChainID)
 	fmt.Printf("  Mode:           %s\n", p.cfg.Mode)
@@ -191,7 +216,7 @@ func (p *Pipeline) initialize(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get master balance: %w", err)
 	}
-	fmt.Printf("\n💰 Master Balance: %s wei\n", masterBalance.String())
+	fmt.Printf("\nMaster Balance: %s wei\n", masterBalance.String())
 
 	// Initialize components
 	p.initializeComponents()
@@ -201,20 +226,28 @@ func (p *Pipeline) initialize(ctx context.Context) error {
 
 // initializeComponents initializes all pipeline components
 func (p *Pipeline) initializeComponents() {
+	// Determine gas price for distributor
+	distGasPrice := big.NewInt(1000000000) // 1 Gwei default
+	if p.cfg.GasPrice != "" {
+		if gasPrice, ok := new(big.Int).SetString(p.cfg.GasPrice, 10); ok && gasPrice.Sign() > 0 {
+			distGasPrice = gasPrice
+		}
+	}
+
 	// Distributor
 	distCfg := &distributor.Config{
 		GasPerTx:      p.cfg.GasLimit,
 		TxsPerAccount: int(p.cfg.Transactions / p.cfg.SubAccounts),
-		GasPrice:      big.NewInt(1000000000), // 1 Gwei default
+		GasPrice:      distGasPrice,
 		BufferPercent: 20,
 	}
 	p.distributor = distributor.New(p.client, distCfg)
 
-	// Batcher
+	// Batcher - optimized for maximum throughput
 	batchCfg := &batcher.Config{
 		BatchSize:     int(p.cfg.BatchSize),
-		MaxConcurrent: 10,
-		BatchInterval: 50 * time.Millisecond,
+		MaxConcurrent: 100, // Increased from 10 for parallel sending
+		BatchInterval: 0,   // Removed delay for maximum speed
 		RetryCount:    3,
 		RetryDelay:    500 * time.Millisecond,
 		Timeout:       30 * time.Second,
@@ -268,7 +301,7 @@ func (p *Pipeline) distribute(ctx context.Context) error {
 		return fmt.Errorf("failed to get nonces: %w", err)
 	}
 
-	fmt.Printf("\n📊 Distribution Summary:\n")
+	fmt.Printf("\nDistribution Summary:\n")
 	fmt.Printf("  Ready Accounts:    %d\n", len(result.ReadyAccounts))
 	fmt.Printf("  Unfunded Accounts: %d\n", len(result.UnfundedAccounts))
 	fmt.Printf("  Total Distributed: %s wei\n", result.TotalDistributed.String())
@@ -285,6 +318,16 @@ func (p *Pipeline) build(ctx context.Context) error {
 	builderCfg := &txbuilder.BuilderConfig{
 		ChainID:  p.chainID,
 		GasLimit: p.cfg.GasLimit,
+	}
+
+	// Apply gas price from config if specified
+	if p.cfg.GasPrice != "" {
+		gasPrice, ok := new(big.Int).SetString(p.cfg.GasPrice, 10)
+		if ok && gasPrice.Sign() > 0 {
+			builderCfg.GasPrice = gasPrice
+			builderCfg.GasTipCap = gasPrice
+			builderCfg.GasFeeCap = gasPrice
+		}
 	}
 
 	// Create factory
@@ -317,7 +360,7 @@ func (p *Pipeline) build(ctx context.Context) error {
 		return fmt.Errorf("failed to build transactions: %w", err)
 	}
 
-	fmt.Printf("\n📊 Build Summary:\n")
+	fmt.Printf("\nBuild Summary:\n")
 	fmt.Printf("  Builder:           %s\n", p.builder.Name())
 	fmt.Printf("  Total Built:       %d\n", len(p.signedTxs))
 
@@ -355,6 +398,16 @@ func (p *Pipeline) createBuilder(factory *txbuilder.Factory) (txbuilder.Builder,
 	case config.ModeERC20Transfer:
 		tokenAddr := common.HexToAddress(p.cfg.Contract)
 		opts = append(opts, txbuilder.WithTokenAddress(tokenAddr))
+		return factory.CreateBuilder(mode, opts...)
+
+	case config.ModeERC721Mint:
+		opts = append(opts, txbuilder.WithNFTName(p.cfg.NFTName))
+		opts = append(opts, txbuilder.WithNFTSymbol(p.cfg.NFTSymbol))
+		opts = append(opts, txbuilder.WithTokenURI(p.cfg.TokenURI))
+		if p.cfg.Contract != "" {
+			nftAddr := common.HexToAddress(p.cfg.Contract)
+			opts = append(opts, txbuilder.WithNFTContract(nftAddr))
+		}
 		return factory.CreateBuilder(mode, opts...)
 
 	default:
@@ -411,9 +464,9 @@ func (p *Pipeline) collect(ctx context.Context) error {
 		exporter := collector.NewExporter(p.runCfg.OutputDir)
 		files, err := exporter.ExportAll(report)
 		if err != nil {
-			fmt.Printf("⚠️  Failed to export report: %v\n", err)
+			fmt.Printf("[WARN] Failed to export report: %v\n", err)
 		} else {
-			fmt.Printf("\n📁 Reports exported to:\n")
+			fmt.Printf("\nReports exported to:\n")
 			for _, f := range files {
 				fmt.Printf("  - %s\n", f)
 			}
@@ -434,16 +487,16 @@ func (p *Pipeline) report(ctx context.Context) error {
 func (p *Pipeline) printFinalSummary(result *Result) {
 	fmt.Println()
 	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
-	fmt.Println("║                    📊 Execution Summary 📊                    ║")
+	fmt.Println("║                      Execution Summary                        ║")
 	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
 	// Stage summary
 	fmt.Printf("Stage Results:\n")
 	for _, sr := range result.StageResults {
-		status := "✅"
+		status := "[OK]"
 		if !sr.Success {
-			status = "❌"
+			status = "[FAIL]"
 		}
 		fmt.Printf("  %s Stage %d (%s): %s\n", status, sr.Stage+1, sr.Stage.String(), sr.Duration)
 	}
@@ -451,9 +504,9 @@ func (p *Pipeline) printFinalSummary(result *Result) {
 	fmt.Printf("\nTotal Duration: %s\n", result.Duration)
 
 	if result.Success() {
-		fmt.Println("\n🎉 Stress test completed successfully!")
+		fmt.Println("\nStress test completed successfully!")
 	} else {
-		fmt.Println("\n⚠️  Stress test completed with errors")
+		fmt.Println("\n[WARN] Stress test completed with errors")
 		for _, err := range result.Errors {
 			fmt.Printf("  - %v\n", err)
 		}
@@ -465,4 +518,169 @@ func (p *Pipeline) Close() {
 	if p.client != nil {
 		p.client.Close()
 	}
+}
+
+// executeAnalyzeBlocks runs the block analyzer mode
+func (p *Pipeline) executeAnalyzeBlocks(ctx context.Context, result *Result) (*Result, error) {
+	fmt.Println("Running Block Analyzer mode...")
+
+	// Create analyzer config
+	analyzerCfg := &analyzer.Config{
+		StartBlock:  p.cfg.BlockStart,
+		EndBlock:    p.cfg.BlockEnd,
+		BlockRange:  p.cfg.BlockRange,
+		Concurrency: 50,
+	}
+
+	// Create and run analyzer
+	blockAnalyzer := analyzer.New(p.client, analyzerCfg)
+
+	analysisResult, err := blockAnalyzer.Analyze(ctx)
+	if err != nil {
+		result.Finalize()
+		return result, fmt.Errorf("block analysis failed: %w", err)
+	}
+
+	// Print results
+	blockAnalyzer.PrintTable(analysisResult)
+
+	// Export to CSV if output directory is configured
+	if p.runCfg.OutputDir != "" {
+		csvFile := fmt.Sprintf("%s/block_analysis_%d_%d.csv", p.runCfg.OutputDir, analysisResult.StartBlock, analysisResult.EndBlock)
+		if err := blockAnalyzer.ExportCSV(analysisResult, csvFile); err != nil {
+			fmt.Printf("[WARN] Failed to export CSV: %v\n", err)
+		} else {
+			fmt.Printf("\nAnalysis exported to: %s\n", csvFile)
+		}
+	}
+
+	result.Finalize()
+	fmt.Println("\nBlock analysis completed successfully!")
+	return result, nil
+}
+
+// executeLongSender runs the long sender mode
+func (p *Pipeline) executeLongSender(ctx context.Context, result *Result, metricsServer *metrics.Metrics) (*Result, error) {
+	fmt.Println("Running Long Sender mode...")
+
+	// Get chain ID
+	chainID, err := p.client.ChainID(ctx)
+	if err != nil {
+		result.Finalize()
+		return result, fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	fmt.Printf("\nConfiguration:\n")
+	fmt.Printf("  URL:            %s\n", p.cfg.URL)
+	fmt.Printf("  Chain ID:       %d\n", chainID.Uint64())
+	fmt.Printf("  Duration:       %s\n", p.cfg.Duration)
+	fmt.Printf("  Target TPS:     %.2f\n", p.cfg.TargetTPS)
+	fmt.Printf("  Workers:        %d\n", p.cfg.Workers)
+	fmt.Printf("  Accounts:       %d\n", p.cfg.SubAccounts)
+
+	// Get keys and initial nonces
+	keys := p.wallet.SubKeys()
+	initialNonces := make([]uint64, len(keys))
+
+	for i, key := range keys {
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		nonce, err := p.client.PendingNonceAt(ctx, addr)
+		if err != nil {
+			result.Finalize()
+			return result, fmt.Errorf("failed to get nonce for %s: %w", addr.Hex(), err)
+		}
+		initialNonces[i] = nonce
+	}
+
+	// Create monitor
+	mon := monitor.New(monitor.DefaultConfig())
+	mon.Start()
+
+	// Create long sender config
+	senderCfg := &longsender.Config{
+		Duration: p.cfg.Duration,
+		TPS:      p.cfg.TargetTPS,
+		Burst:    int(p.cfg.TargetTPS / 10),
+		Workers:  p.cfg.Workers,
+	}
+	if senderCfg.Burst < 10 {
+		senderCfg.Burst = 10
+	}
+
+	// Create long sender with callbacks
+	sender := longsender.New(p.client, senderCfg)
+
+	// Setup callbacks for metrics and monitoring
+	callbacks := &longsender.Callbacks{
+		OnSent: func(hash common.Hash) {
+			mon.RecordSent(1)
+			if metricsServer != nil {
+				metricsServer.RecordTxSent()
+			}
+		},
+		OnFailed: func(err error) {
+			mon.RecordFailed(1)
+			if metricsServer != nil {
+				metricsServer.RecordTxFailed()
+			}
+		},
+		OnTPS: func(currentTPS float64) {
+			if metricsServer != nil {
+				metricsServer.SetCurrentTPS(currentTPS)
+			}
+		},
+	}
+	sender.WithCallbacks(callbacks)
+
+	// Start monitor display in background
+	monCtx, monCancel := context.WithCancel(ctx)
+	go mon.Display(monCtx)
+
+	fmt.Println("\nStarting continuous transaction sending...")
+	fmt.Println("Press Ctrl+C to stop")
+
+	// Run the long sender
+	sendResult, err := sender.Run(ctx, keys, initialNonces)
+
+	// Stop monitor display
+	monCancel()
+
+	// Print final results
+	fmt.Println()
+	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
+	fmt.Println("║                     Long Sender Results                       ║")
+	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	fmt.Println()
+
+	if sendResult != nil {
+		fmt.Printf("  Total Duration:     %s\n", sendResult.TotalDuration)
+		fmt.Printf("  Transactions Sent:  %d\n", sendResult.TotalSent)
+		fmt.Printf("  Transactions Failed: %d\n", sendResult.TotalFailed)
+		fmt.Printf("  Average TPS:        %.2f\n", sendResult.AverageTPS)
+		fmt.Printf("  Success Rate:       %.2f%%\n", float64(sendResult.TotalSent)/float64(sendResult.TotalSent+sendResult.TotalFailed)*100)
+
+		if len(sendResult.Errors) > 0 {
+			fmt.Printf("\n  Sample Errors (last %d):\n", len(sendResult.Errors))
+			for i, e := range sendResult.Errors {
+				if i >= 5 {
+					fmt.Printf("    ... and %d more\n", len(sendResult.Errors)-5)
+					break
+				}
+				fmt.Printf("    - %v\n", e)
+			}
+		}
+	}
+
+	result.Finalize()
+
+	if err != nil {
+		if ctx.Err() != nil {
+			fmt.Println("\nLong sender stopped by user")
+			return result, nil
+		}
+		return result, fmt.Errorf("long sender failed: %w", err)
+	}
+
+	fmt.Println("\nLong sender completed successfully!")
+	return result, nil
 }

@@ -83,7 +83,7 @@ func (b *FeeDelegationBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateK
 		totalTxs += n
 	}
 
-	fmt.Printf("\n📝 Building Fee Delegation Transactions 📝\n\n")
+	fmt.Printf("\nBuilding Fee Delegation Transactions\n\n")
 	fmt.Printf("Fee Payer: %s\n", crypto.PubkeyToAddress(b.feePayerKey.PublicKey).Hex())
 	bar := progressbar.Default(int64(totalTxs), "txs built")
 
@@ -130,7 +130,7 @@ func (b *FeeDelegationBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateK
 		}
 	}
 
-	fmt.Printf("\n✅ Successfully built %d fee delegation transactions\n", len(signedTxs))
+	fmt.Printf("\n[OK] Successfully built %d fee delegation transactions\n", len(signedTxs))
 	fmt.Printf("   Fee Payer: %s\n", feePayer.Hex())
 	return signedTxs, nil
 }

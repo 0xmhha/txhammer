@@ -54,7 +54,7 @@ func (d *Distributor) Distribute(
 	masterKey *ecdsa.PrivateKey,
 	subAccounts []common.Address,
 ) (*DistributionResult, error) {
-	fmt.Printf("\n💸 Starting Fund Distribution 💸\n\n")
+	fmt.Printf("\nStarting Fund Distribution\n\n")
 
 	// Get chain ID if not set
 	if d.chainID == nil {
@@ -90,7 +90,7 @@ func (d *Distributor) Distribute(
 
 	// If all accounts are already funded
 	if len(unfundedAccounts) == 0 {
-		fmt.Printf("✅ All %d accounts are already funded\n", len(fundedAccounts))
+		fmt.Printf("[OK] All %d accounts are already funded\n", len(fundedAccounts))
 		return &DistributionResult{
 			ReadyAccounts:    fundedAccounts,
 			UnfundedAccounts: nil,
@@ -179,23 +179,22 @@ func (d *Distributor) fundAccounts(
 	fmt.Printf("Master account: %s\n", masterAddr.Hex())
 	fmt.Printf("Master balance: %s wei\n\n", masterBalance.String())
 
-	// Get gas settings
-	gasTipCap, err := d.client.SuggestGasTipCap(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to suggest gas tip cap: %w", err)
+	// Get gas price - use config GasPrice if available, otherwise suggest
+	var gasPrice *big.Int
+	if d.config.GasPrice != nil && d.config.GasPrice.Sign() > 0 {
+		// Use configured gas price
+		gasPrice = new(big.Int).Set(d.config.GasPrice)
+	} else {
+		var err error
+		gasPrice, err = d.client.SuggestGasPrice(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to suggest gas price: %w", err)
+		}
 	}
-
-	gasPrice, err := d.client.SuggestGasPrice(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to suggest gas price: %w", err)
-	}
-
-	// gasFeeCap = 2 * gasPrice (to account for base fee fluctuations)
-	gasFeeCap := new(big.Int).Mul(gasPrice, big.NewInt(2))
 
 	// Transfer gas cost (21000 gas for simple transfer)
 	transferGas := uint64(21000)
-	transferCost := new(big.Int).Mul(gasFeeCap, big.NewInt(int64(transferGas)))
+	transferCost := new(big.Int).Mul(gasPrice, big.NewInt(int64(transferGas)))
 
 	// Calculate how many accounts we can fund
 	fundableAccounts := make([]*AccountStatus, 0)
@@ -217,7 +216,7 @@ func (d *Distributor) fundAccounts(
 	}
 
 	if len(fundableAccounts) == 0 {
-		fmt.Printf("❌ Master account cannot fund any sub-accounts\n")
+		fmt.Printf("[FAIL] Master account cannot fund any sub-accounts\n")
 		fmt.Printf("   Master balance: %s wei\n", masterBalance.String())
 		fmt.Printf("   Minimum needed: %s wei\n", unfundedAccounts[0].MissingFund.String())
 		return nil, ErrInsufficientFunds
@@ -236,20 +235,18 @@ func (d *Distributor) fundAccounts(
 	txCount := 0
 
 	for _, account := range fundableAccounts {
-		// Create transfer transaction
-		tx := types.NewTx(&types.DynamicFeeTx{
-			ChainID:   d.chainID,
-			Nonce:     nonce,
-			GasTipCap: gasTipCap,
-			GasFeeCap: gasFeeCap,
-			Gas:       transferGas,
-			To:        &account.Address,
-			Value:     account.MissingFund,
-			Data:      nil,
+		// Create legacy transaction (type 0) for better compatibility
+		tx := types.NewTx(&types.LegacyTx{
+			Nonce:    nonce,
+			GasPrice: gasPrice,
+			Gas:      transferGas,
+			To:       &account.Address,
+			Value:    account.MissingFund,
+			Data:     nil,
 		})
 
-		// Sign transaction
-		signer := types.NewLondonSigner(d.chainID)
+		// Sign transaction with EIP-155 signer
+		signer := types.NewEIP155Signer(d.chainID)
 		signedTx, err := types.SignTx(tx, signer, masterKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to sign transfer tx: %w", err)
@@ -274,7 +271,7 @@ func (d *Distributor) fundAccounts(
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	fmt.Printf("\n✅ Successfully funded %d accounts\n", len(readyAccounts))
+	fmt.Printf("\n[OK] Successfully funded %d accounts\n", len(readyAccounts))
 	fmt.Printf("   Total distributed: %s wei\n", totalToDistribute.String())
 
 	// Calculate unfunded accounts
@@ -284,7 +281,7 @@ func (d *Distributor) fundAccounts(
 	}
 
 	if len(unfunded) > 0 {
-		fmt.Printf("   ⚠️  %d accounts could not be funded (insufficient master balance)\n", len(unfunded))
+		fmt.Printf("   [WARN] %d accounts could not be funded (insufficient master balance)\n", len(unfunded))
 	}
 
 	return &DistributionResult{
@@ -301,7 +298,7 @@ func (d *Distributor) WaitForFunding(
 	accounts []*AccountStatus,
 	timeout time.Duration,
 ) error {
-	fmt.Printf("\n⏳ Waiting for funding confirmations...\n")
+	fmt.Printf("\nWaiting for funding confirmations...\n")
 
 	deadline := time.Now().Add(timeout)
 	bar := progressbar.Default(int64(len(accounts)), "confirming")
@@ -327,7 +324,7 @@ func (d *Distributor) WaitForFunding(
 		}
 	}
 
-	fmt.Printf("✅ All funding transactions confirmed\n")
+	fmt.Printf("[OK] All funding transactions confirmed\n")
 	return nil
 }
 

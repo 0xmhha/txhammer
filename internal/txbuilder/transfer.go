@@ -51,8 +51,8 @@ func (b *TransferBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKey, n
 		return nil, fmt.Errorf("keys and nonces length mismatch: %d vs %d", len(keys), len(nonces))
 	}
 
-	// Get gas settings
-	gasTipCap, gasFeeCap, err := b.GetGasSettings(ctx)
+	// Get gas settings (only need gasFeeCap for legacy transactions)
+	_, gasFeeCap, err := b.GetGasSettings(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (b *TransferBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKey, n
 		totalTxs += n
 	}
 
-	fmt.Printf("\n📝 Building Transfer Transactions 📝\n\n")
+	fmt.Printf("\nBuilding Transfer Transactions\n\n")
 	bar := progressbar.Default(int64(totalTxs), "txs built")
 
 	signedTxs := make([]*SignedTx, 0, totalTxs)
@@ -90,16 +90,14 @@ func (b *TransferBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKey, n
 				to = from
 			}
 
-			// Create EIP-1559 transaction
-			tx := types.NewTx(&types.DynamicFeeTx{
-				ChainID:   b.config.ChainID,
-				Nonce:     nonce,
-				GasTipCap: gasTipCap,
-				GasFeeCap: gasFeeCap,
-				Gas:       gasLimit,
-				To:        &to,
-				Value:     big.NewInt(1), // Transfer 1 wei
-				Data:      nil,
+			// Create legacy transaction (type 0) for better compatibility
+			tx := types.NewTx(&types.LegacyTx{
+				Nonce:    nonce,
+				GasPrice: gasFeeCap, // Use gasFeeCap as legacy gas price
+				Gas:      gasLimit,
+				To:       &to,
+				Value:    big.NewInt(1), // Transfer 1 wei
+				Data:     nil,
 			})
 
 			// Sign the transaction
@@ -128,7 +126,7 @@ func (b *TransferBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKey, n
 		}
 	}
 
-	fmt.Printf("\n✅ Successfully built %d transactions\n", len(signedTxs))
+	fmt.Printf("\n[OK] Successfully built %d transactions\n", len(signedTxs))
 	return signedTxs, nil
 }
 
@@ -140,7 +138,7 @@ func (b *TransferBuilder) BuildSingle(
 	to common.Address,
 	value *big.Int,
 ) (*SignedTx, error) {
-	gasTipCap, gasFeeCap, err := b.GetGasSettings(ctx)
+	_, gasFeeCap, err := b.GetGasSettings(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -152,15 +150,13 @@ func (b *TransferBuilder) BuildSingle(
 
 	from := crypto.PubkeyToAddress(key.PublicKey)
 
-	tx := types.NewTx(&types.DynamicFeeTx{
-		ChainID:   b.config.ChainID,
-		Nonce:     nonce,
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
-		Gas:       gasLimit,
-		To:        &to,
-		Value:     value,
-		Data:      nil,
+	tx := types.NewTx(&types.LegacyTx{
+		Nonce:    nonce,
+		GasPrice: gasFeeCap, // Use gasFeeCap as legacy gas price
+		Gas:      gasLimit,
+		To:       &to,
+		Value:    value,
+		Data:     nil,
 	})
 
 	signedTx, err := SignTransaction(tx, b.config.ChainID, key)

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/piatoss3612/txhammer/internal/txbuilder"
+	"github.com/0xmhha/txhammer/internal/txbuilder"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -48,7 +48,7 @@ func (b *Batcher) SendAll(ctx context.Context, txs []*txbuilder.SignedTx) (*Summ
 		return &Summary{}, nil
 	}
 
-	fmt.Printf("\n🚀 Starting Batch Transaction Sending 🚀\n\n")
+	fmt.Printf("\nStarting Batch Transaction Sending\n\n")
 	fmt.Printf("Total transactions: %d\n", len(txs))
 	fmt.Printf("Batch size: %d\n", b.config.BatchSize)
 	fmt.Printf("Max concurrent: %d\n", b.config.MaxConcurrent)
@@ -243,7 +243,7 @@ func (b *Batcher) buildSummary(batchResults []*BatchResult, totalDuration time.D
 
 // printSummary prints the batch operation summary
 func (b *Batcher) printSummary(summary *Summary) {
-	fmt.Printf("\n📊 Batch Sending Summary 📊\n\n")
+	fmt.Printf("\nBatch Sending Summary\n\n")
 	fmt.Printf("Total batches: %d\n", summary.TotalBatches)
 	fmt.Printf("Total transactions: %d\n", summary.TotalTxs)
 	fmt.Printf("Successful: %d (%.2f%%)\n", summary.SuccessCount,
@@ -255,7 +255,7 @@ func (b *Batcher) printSummary(summary *Summary) {
 	fmt.Printf("Throughput: %.2f tx/s\n", summary.TxPerSecond)
 
 	if len(summary.FailedTxs) > 0 {
-		fmt.Printf("\n⚠️  Failed Transactions: %d\n", len(summary.FailedTxs))
+		fmt.Printf("\n[WARN] Failed Transactions: %d\n", len(summary.FailedTxs))
 		// Show first 5 failed txs
 		showCount := 5
 		if len(summary.FailedTxs) < showCount {

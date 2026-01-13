@@ -92,4 +92,4 @@ CMD ["--help"]
 # =============================================================================
 LABEL org.opencontainers.image.title="TxHammer"
 LABEL org.opencontainers.image.description="StableNet Stress Testing Tool"
-LABEL org.opencontainers.image.source="https://github.com/piatoss3612/txhammer"
+LABEL org.opencontainers.image.source="https://github.com/0xmhha/txhammer"

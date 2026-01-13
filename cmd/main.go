@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/piatoss3612/txhammer/internal/config"
-	"github.com/piatoss3612/txhammer/internal/pipeline"
+	"github.com/0xmhha/txhammer/internal/config"
+	"github.com/0xmhha/txhammer/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 
@@ -45,7 +45,7 @@ func registerFlags(cmd *cobra.Command) {
 	flags.StringVar(&cfg.Mnemonic, "mnemonic", "", "BIP39 mnemonic (alternative to private-key)")
 
 	// Test configuration
-	flags.StringVar(&cfg.Mode, "mode", "TRANSFER", "Test mode: TRANSFER, FEE_DELEGATION, CONTRACT_DEPLOY, CONTRACT_CALL, ERC20_TRANSFER")
+	flags.StringVar(&cfg.Mode, "mode", "TRANSFER", "Test mode: TRANSFER, FEE_DELEGATION, CONTRACT_DEPLOY, CONTRACT_CALL, ERC20_TRANSFER, LONG_SENDER, ANALYZE_BLOCKS, ERC721_MINT")
 	flags.Uint64Var(&cfg.SubAccounts, "sub-accounts", 10, "Number of sub-accounts")
 	flags.Uint64Var(&cfg.Transactions, "transactions", 100, "Total number of transactions")
 	flags.Uint64Var(&cfg.BatchSize, "batch", 100, "Batch size for JSON-RPC requests")
@@ -79,6 +79,25 @@ func registerFlags(cmd *cobra.Command) {
 	flags.BoolVar(&runCfg.StreamingMode, "streaming", false, "Use streaming mode instead of batch mode")
 	flags.Float64Var(&runCfg.StreamingRate, "streaming-rate", 1000, "Rate limit for streaming mode (tx/s)")
 	flags.BoolVar(&runCfg.DryRun, "dry-run", false, "Build transactions but don't send them")
+
+	// Prometheus metrics flags
+	flags.BoolVar(&cfg.MetricsEnabled, "metrics", false, "Enable Prometheus metrics endpoint")
+	flags.IntVar(&cfg.MetricsPort, "metrics-port", 9090, "Port for Prometheus metrics endpoint")
+
+	// Long Sender mode flags
+	flags.DurationVar(&cfg.Duration, "duration", 0, "Test duration for LONG_SENDER mode (e.g., 5m, 1h, 24h)")
+	flags.Float64Var(&cfg.TargetTPS, "tps", 100, "Target TPS for LONG_SENDER mode")
+	flags.IntVar(&cfg.Workers, "workers", 10, "Number of concurrent workers for LONG_SENDER mode")
+
+	// Block Analyzer mode flags
+	flags.Int64Var(&cfg.BlockStart, "block-start", 0, "Start block number for ANALYZE_BLOCKS mode")
+	flags.Int64Var(&cfg.BlockEnd, "block-end", 0, "End block number for ANALYZE_BLOCKS mode")
+	flags.Int64Var(&cfg.BlockRange, "block-range", 100, "Number of recent blocks to analyze for ANALYZE_BLOCKS mode")
+
+	// ERC721 Mint mode flags
+	flags.StringVar(&cfg.NFTName, "nft-name", "TxHammerNFT", "NFT collection name for ERC721_MINT mode")
+	flags.StringVar(&cfg.NFTSymbol, "nft-symbol", "TXHNFT", "NFT collection symbol for ERC721_MINT mode")
+	flags.StringVar(&cfg.TokenURI, "token-uri", "https://txhammer.io/nft/", "Base token URI for ERC721_MINT mode")
 
 	// Mark required flags
 	_ = cmd.MarkFlagRequired("url")

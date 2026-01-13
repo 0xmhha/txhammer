@@ -101,7 +101,7 @@ func (c *Client) BatchCall(b []rpc.BatchElem) error {
 // SendRawTransaction sends a raw transaction via RPC
 func (c *Client) SendRawTransaction(ctx context.Context, rawTx []byte) (common.Hash, error) {
 	var hash common.Hash
-	err := c.rpc.CallContext(ctx, &hash, "eth_sendRawTransaction", common.Bytes2Hex(rawTx))
+	err := c.rpc.CallContext(ctx, &hash, "eth_sendRawTransaction", "0x"+common.Bytes2Hex(rawTx))
 	return hash, err
 }
 
