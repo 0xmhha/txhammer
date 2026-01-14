@@ -437,7 +437,6 @@ func TestBatcher_sendBatchWithRetry(t *testing.T) {
 
 	rawTxs := [][]byte{{0x01}, {0x02}}
 	hashes, err := batcher.sendBatchWithRetry(context.Background(), rawTxs)
-
 	if err != nil {
 		t.Fatalf("sendBatchWithRetry() error = %v", err)
 	}
