@@ -24,16 +24,16 @@ const (
 
 // TxRequest represents a transaction request
 type TxRequest struct {
-	From     common.Address
-	To       *common.Address
-	Value    *big.Int
-	Data     []byte
-	Nonce    uint64
-	Gas      uint64
-	GasPrice *big.Int // for legacy tx
+	From      common.Address
+	To        *common.Address
+	Value     *big.Int
+	Data      []byte
+	Nonce     uint64
+	Gas       uint64
+	GasPrice  *big.Int // for legacy tx
 	GasTipCap *big.Int // for EIP-1559
 	GasFeeCap *big.Int // for EIP-1559
-	ChainID  *big.Int
+	ChainID   *big.Int
 }
 
 // FeeDelegationRequest extends TxRequest for fee delegation

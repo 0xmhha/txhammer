@@ -74,8 +74,8 @@ func (c *Client) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
 }
 
 // EstimateGas estimates the gas needed for a transaction
-func (c *Client) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
-	return c.eth.EstimateGas(ctx, msg)
+func (c *Client) EstimateGas(ctx context.Context, msg *ethereum.CallMsg) (uint64, error) {
+	return c.eth.EstimateGas(ctx, *msg)
 }
 
 // SendTransaction sends a signed transaction
@@ -118,7 +118,7 @@ func (c *Client) BatchSendRawTransactions(ctx context.Context, rawTxs [][]byte) 
 		}
 	}
 
-	if err := c.rpc.BatchCall(batch); err != nil {
+	if err := c.rpc.BatchCallContext(ctx, batch); err != nil {
 		return nil, fmt.Errorf("batch call failed: %w", err)
 	}
 
@@ -134,7 +134,7 @@ func (c *Client) BatchSendRawTransactions(ctx context.Context, rawTxs [][]byte) 
 
 // GetBlockGasLimit returns the gas limit of a specific block
 func (c *Client) GetBlockGasLimit(ctx context.Context, blockNumber uint64) (uint64, error) {
-	block, err := c.eth.BlockByNumber(ctx, big.NewInt(int64(blockNumber)))
+	block, err := c.eth.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	if err != nil {
 		return 0, err
 	}
@@ -143,7 +143,7 @@ func (c *Client) GetBlockGasLimit(ctx context.Context, blockNumber uint64) (uint
 
 // GetBlockGasUsed returns the gas used in a specific block
 func (c *Client) GetBlockGasUsed(ctx context.Context, blockNumber uint64) (uint64, error) {
-	block, err := c.eth.BlockByNumber(ctx, big.NewInt(int64(blockNumber)))
+	block, err := c.eth.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	if err != nil {
 		return 0, err
 	}

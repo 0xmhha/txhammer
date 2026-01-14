@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/0xmhha/txhammer/internal/config"
 )
 
@@ -30,83 +31,107 @@ func (f *Factory) CreateBuilder(mode config.Mode, opts ...BuilderOption) (Builde
 		opt(options)
 	}
 
+	return f.buildBuilder(mode, options)
+}
+
+func (f *Factory) buildBuilder(mode config.Mode, options *builderOptions) (Builder, error) {
 	switch mode {
 	case config.ModeTransfer:
-		builder := NewTransferBuilder(f.cfg, f.estimator)
-		if options.recipient != (common.Address{}) {
-			builder.WithRecipient(options.recipient)
-		}
-		return builder, nil
-
+		return f.buildTransfer(options), nil
 	case config.ModeFeeDelegation:
-		if options.feePayerKey == nil {
-			return nil, fmt.Errorf("fee payer key is required for FEE_DELEGATION mode")
-		}
-		builder := NewFeeDelegationBuilder(f.cfg, f.estimator, options.feePayerKey)
-		if options.recipient != (common.Address{}) {
-			builder.WithRecipient(options.recipient)
-		}
-		return builder, nil
-
+		return f.buildFeeDelegation(options)
 	case config.ModeContractDeploy:
-		builder := NewContractDeployBuilder(f.cfg, f.estimator)
-		if options.bytecode != nil {
-			builder.WithBytecode(options.bytecode)
-		}
-		return builder, nil
-
+		return f.buildContractDeploy(options), nil
 	case config.ModeContractCall:
-		if options.contractAddr == (common.Address{}) {
-			return nil, fmt.Errorf("contract address is required for CONTRACT_CALL mode")
-		}
-		builder := NewContractCallBuilder(f.cfg, f.estimator, options.contractAddr)
-		if options.method != "" {
-			builder.WithMethod(options.method, options.methodArgs...)
-		}
-		if options.abiJSON != "" {
-			var err error
-			builder, err = builder.WithABI(options.abiJSON)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return builder, nil
-
+		return f.buildContractCall(options)
 	case config.ModeERC20Transfer:
-		if options.tokenAddr == (common.Address{}) {
-			return nil, fmt.Errorf("token address is required for ERC20_TRANSFER mode")
-		}
-		builder := NewERC20TransferBuilder(f.cfg, f.estimator, options.tokenAddr)
-		if options.recipient != (common.Address{}) {
-			builder.WithRecipient(options.recipient)
-		}
-		if options.amount != nil {
-			builder.WithAmount(options.amount)
-		}
-		return builder, nil
-
+		return f.buildERC20Transfer(options)
 	case config.ModeERC721Mint:
-		builder, err := NewERC721MintBuilder(f.cfg, f.estimator)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create ERC721 mint builder: %w", err)
-		}
-		if options.nftContract != (common.Address{}) {
-			builder.WithContract(options.nftContract)
-		}
-		if options.tokenURI != "" {
-			builder.WithTokenURI(options.tokenURI)
-		}
-		if options.nftName != "" {
-			builder.WithNFTName(options.nftName)
-		}
-		if options.nftSymbol != "" {
-			builder.WithNFTSymbol(options.nftSymbol)
-		}
-		return builder, nil
-
+		return f.buildERC721Mint(options)
+	case config.ModeLongSender, config.ModeAnalyzeBlocks:
+		return nil, fmt.Errorf("mode %s does not use a transaction builder", mode)
 	default:
 		return nil, fmt.Errorf("unsupported mode: %s", mode)
 	}
+}
+
+func (f *Factory) buildTransfer(options *builderOptions) *TransferBuilder {
+	builder := NewTransferBuilder(f.cfg, f.estimator)
+	if options.recipient != (common.Address{}) {
+		builder.WithRecipient(options.recipient)
+	}
+	return builder
+}
+
+func (f *Factory) buildFeeDelegation(options *builderOptions) (Builder, error) {
+	if options.feePayerKey == nil {
+		return nil, fmt.Errorf("fee payer key is required for FEE_DELEGATION mode")
+	}
+	builder := NewFeeDelegationBuilder(f.cfg, f.estimator, options.feePayerKey)
+	if options.recipient != (common.Address{}) {
+		builder.WithRecipient(options.recipient)
+	}
+	return builder, nil
+}
+
+func (f *Factory) buildContractDeploy(options *builderOptions) *ContractDeployBuilder {
+	builder := NewContractDeployBuilder(f.cfg, f.estimator)
+	if options.bytecode != nil {
+		builder.WithBytecode(options.bytecode)
+	}
+	return builder
+}
+
+func (f *Factory) buildContractCall(options *builderOptions) (Builder, error) {
+	if options.contractAddr == (common.Address{}) {
+		return nil, fmt.Errorf("contract address is required for CONTRACT_CALL mode")
+	}
+	builder := NewContractCallBuilder(f.cfg, f.estimator, options.contractAddr)
+	if options.method != "" {
+		builder.WithMethod(options.method, options.methodArgs...)
+	}
+	if options.abiJSON != "" {
+		var err error
+		builder, err = builder.WithABI(options.abiJSON)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return builder, nil
+}
+
+func (f *Factory) buildERC20Transfer(options *builderOptions) (Builder, error) {
+	if options.tokenAddr == (common.Address{}) {
+		return nil, fmt.Errorf("token address is required for ERC20_TRANSFER mode")
+	}
+	builder := NewERC20TransferBuilder(f.cfg, f.estimator, options.tokenAddr)
+	if options.recipient != (common.Address{}) {
+		builder.WithRecipient(options.recipient)
+	}
+	if options.amount != nil {
+		builder.WithAmount(options.amount)
+	}
+	return builder, nil
+}
+
+func (f *Factory) buildERC721Mint(options *builderOptions) (Builder, error) {
+	builder, err := NewERC721MintBuilder(f.cfg, f.estimator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ERC721 mint builder: %w", err)
+	}
+	if options.nftContract != (common.Address{}) {
+		builder.WithContract(options.nftContract)
+	}
+	if options.tokenURI != "" {
+		builder.WithTokenURI(options.tokenURI)
+	}
+	if options.nftName != "" {
+		builder.WithNFTName(options.nftName)
+	}
+	if options.nftSymbol != "" {
+		builder.WithNFTSymbol(options.nftSymbol)
+	}
+	return builder, nil
 }
 
 // BuilderOption is a functional option for builder configuration

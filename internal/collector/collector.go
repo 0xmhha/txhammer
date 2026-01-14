@@ -12,6 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/schollz/progressbar/v3"
+
+	"github.com/0xmhha/txhammer/internal/util/mathutil"
+	"github.com/0xmhha/txhammer/internal/util/progress"
 )
 
 // Client interface for collector operations
@@ -28,10 +31,10 @@ type Collector struct {
 	config *Config
 
 	// Tracking state
-	txMap    map[common.Hash]*TxInfo
-	txMutex  sync.RWMutex
-	blocks   []*BlockInfo
-	blockMu  sync.RWMutex
+	txMap   map[common.Hash]*TxInfo
+	txMutex sync.RWMutex
+	blocks  []*BlockInfo
+	blockMu sync.RWMutex
 
 	// Metrics
 	confirmed atomic.Int64
@@ -132,7 +135,7 @@ func (c *Collector) Collect(ctx context.Context) (*Report, error) {
 		// Collect pending receipts
 		newCollected := c.collectBatch(ctx)
 		if newCollected > 0 {
-			_ = bar.Add(newCollected)
+			progress.Add(bar, newCollected)
 			collected += newCollected
 		}
 
@@ -249,7 +252,11 @@ func (c *Collector) trackBlocks(ctx context.Context) {
 			if blockNum > lastBlock {
 				// Fetch new blocks
 				for num := lastBlock + 1; num <= blockNum; num++ {
-					block, err := c.client.BlockByNumber(ctx, big.NewInt(int64(num)))
+					block, err := c.client.BlockByNumber(ctx, new(big.Int).SetUint64(num))
+					if err != nil {
+						continue
+					}
+					timestamp, err := mathutil.Uint64ToInt64(block.Time())
 					if err != nil {
 						continue
 					}
@@ -257,7 +264,7 @@ func (c *Collector) trackBlocks(ctx context.Context) {
 					blockInfo := &BlockInfo{
 						Number:    num,
 						Hash:      block.Hash(),
-						Timestamp: time.Unix(int64(block.Time()), 0),
+						Timestamp: time.Unix(timestamp, 0),
 						GasLimit:  block.GasLimit(),
 						GasUsed:   block.GasUsed(),
 						TxCount:   len(block.Transactions()),
@@ -298,14 +305,24 @@ func (c *Collector) buildReport(report *Report) *Report {
 	c.blockMu.RLock()
 	defer c.blockMu.RUnlock()
 
-	// Copy transactions
+	latencies, totalGasUsed, totalGasCost := c.populateTransactionMetrics(report)
+	c.applyLatencyMetrics(report, latencies)
+	c.applyTPSMetrics(report)
+	c.applyGasMetrics(report, totalGasUsed, totalGasCost)
+	c.applySuccessRate(report)
+	c.applyBlockMetrics(report)
+	c.applyBlockBasedTPS(report)
+
+	return report
+}
+
+func (c *Collector) populateTransactionMetrics(report *Report) ([]time.Duration, uint64, *big.Int) {
 	latencies := make([]time.Duration, 0)
 	var totalGasUsed uint64
 	totalGasCost := big.NewInt(0)
 
 	for _, tx := range c.txMap {
 		report.Transactions = append(report.Transactions, tx)
-
 		switch tx.Status {
 		case TxConfirmSuccess:
 			report.Metrics.TotalConfirmed++
@@ -313,7 +330,7 @@ func (c *Collector) buildReport(report *Report) *Report {
 			if tx.Receipt != nil {
 				totalGasUsed += tx.Receipt.GasUsed
 				cost := new(big.Int).Mul(
-					big.NewInt(int64(tx.Receipt.GasUsed)),
+					new(big.Int).SetUint64(tx.Receipt.GasUsed),
 					tx.Receipt.EffectiveGasPrice,
 				)
 				totalGasCost.Add(totalGasCost, cost)
@@ -321,74 +338,88 @@ func (c *Collector) buildReport(report *Report) *Report {
 		case TxConfirmFailed:
 			report.Metrics.TotalFailed++
 			if tx.Error != nil {
-				errStr := tx.Error.Error()
-				report.ErrorSummary[errStr]++
+				report.ErrorSummary[tx.Error.Error()]++
 			}
 		case TxConfirmPending:
 			report.Metrics.TotalPending++
 		case TxConfirmTimeout:
 			report.Metrics.TotalTimeout++
+		case TxConfirmNotFound:
+			report.Metrics.TotalPending++
 		}
 	}
 
 	report.Metrics.TotalSent = len(c.txMap)
 	report.Metrics.EndTime = report.EndTime
 	report.Metrics.TotalDuration = report.Duration
+	return latencies, totalGasUsed, totalGasCost
+}
 
-	// Calculate latency metrics
-	if len(latencies) > 0 {
-		report.Metrics.AvgLatency = c.calculateAvgLatency(latencies)
-		report.Metrics.MinLatency, report.Metrics.MaxLatency = c.calculateMinMaxLatency(latencies)
-		report.Metrics.P50Latency = c.calculatePercentile(latencies, 50)
-		report.Metrics.P95Latency = c.calculatePercentile(latencies, 95)
-		report.Metrics.P99Latency = c.calculatePercentile(latencies, 99)
-		report.LatencyHistogram = c.buildLatencyHistogram(latencies)
+func (c *Collector) applyLatencyMetrics(report *Report, latencies []time.Duration) {
+	if len(latencies) == 0 {
+		return
 	}
+	report.Metrics.AvgLatency = c.calculateAvgLatency(latencies)
+	report.Metrics.MinLatency, report.Metrics.MaxLatency = c.calculateMinMaxLatency(latencies)
+	report.Metrics.P50Latency = c.calculatePercentile(latencies, 50)
+	report.Metrics.P95Latency = c.calculatePercentile(latencies, 95)
+	report.Metrics.P99Latency = c.calculatePercentile(latencies, 99)
+	report.LatencyHistogram = c.buildLatencyHistogram(latencies)
+}
 
-	// Calculate TPS
-	if report.Duration.Seconds() > 0 {
-		report.Metrics.TPS = float64(report.Metrics.TotalSent) / report.Duration.Seconds()
-		report.Metrics.ConfirmedTPS = float64(report.Metrics.TotalConfirmed) / report.Duration.Seconds()
+func (c *Collector) applyTPSMetrics(report *Report) {
+	if report.Duration.Seconds() <= 0 {
+		return
 	}
+	report.Metrics.TPS = float64(report.Metrics.TotalSent) / report.Duration.Seconds()
+	report.Metrics.ConfirmedTPS = float64(report.Metrics.TotalConfirmed) / report.Duration.Seconds()
+}
 
-	// Calculate gas metrics
-	if report.Metrics.TotalConfirmed > 0 {
-		report.Metrics.TotalGasUsed = totalGasUsed
-		report.Metrics.AvgGasUsed = totalGasUsed / uint64(report.Metrics.TotalConfirmed)
-		report.Metrics.TotalGasCost = totalGasCost
-		report.Metrics.AvgGasCost = new(big.Int).Div(totalGasCost, big.NewInt(int64(report.Metrics.TotalConfirmed)))
+func (c *Collector) applyGasMetrics(report *Report, totalGasUsed uint64, totalGasCost *big.Int) {
+	if report.Metrics.TotalConfirmed == 0 {
+		return
 	}
-
-	// Calculate success rate
-	if report.Metrics.TotalSent > 0 {
-		report.Metrics.SuccessRate = float64(report.Metrics.TotalConfirmed) / float64(report.Metrics.TotalSent) * 100
+	report.Metrics.TotalGasUsed = totalGasUsed
+	report.Metrics.TotalGasCost = totalGasCost
+	if confirmed, err := mathutil.IntToUint64(report.Metrics.TotalConfirmed); err == nil && confirmed > 0 {
+		report.Metrics.AvgGasUsed = totalGasUsed / confirmed
+		report.Metrics.AvgGasCost = new(big.Int).Div(totalGasCost, new(big.Int).SetUint64(confirmed))
 	}
+}
 
-	// Copy blocks and calculate block metrics
+func (c *Collector) applySuccessRate(report *Report) {
+	if report.Metrics.TotalSent == 0 {
+		return
+	}
+	report.Metrics.SuccessRate = float64(report.Metrics.TotalConfirmed) / float64(report.Metrics.TotalSent) * 100
+}
+
+func (c *Collector) applyBlockMetrics(report *Report) {
 	report.Blocks = c.blocks
 	report.Metrics.BlocksObserved = len(c.blocks)
-
-	if len(c.blocks) > 1 {
-		var totalBlockTime time.Duration
-		var totalTxPerBlock float64
-		var totalUtilization float64
-
-		for i := 1; i < len(c.blocks); i++ {
-			blockTime := c.blocks[i].Timestamp.Sub(c.blocks[i-1].Timestamp)
-			totalBlockTime += blockTime
-		}
-		report.Metrics.AvgBlockTime = totalBlockTime / time.Duration(len(c.blocks)-1)
-
-		for _, block := range c.blocks {
-			totalTxPerBlock += float64(block.TxCount)
-			totalUtilization += block.Utilization
-		}
-		report.Metrics.AvgTxPerBlock = totalTxPerBlock / float64(len(c.blocks))
-		report.Metrics.AvgUtilization = totalUtilization / float64(len(c.blocks))
+	if len(c.blocks) <= 1 {
+		return
 	}
 
-	// Calculate block-based TPS (transactions per block span)
-	// Find first and last blocks containing our transactions, and count blocks with our txs
+	var totalBlockTime time.Duration
+	var totalTxPerBlock float64
+	var totalUtilization float64
+
+	for i := 1; i < len(c.blocks); i++ {
+		blockTime := c.blocks[i].Timestamp.Sub(c.blocks[i-1].Timestamp)
+		totalBlockTime += blockTime
+	}
+	report.Metrics.AvgBlockTime = totalBlockTime / time.Duration(len(c.blocks)-1)
+
+	for _, block := range c.blocks {
+		totalTxPerBlock += float64(block.TxCount)
+		totalUtilization += block.Utilization
+	}
+	report.Metrics.AvgTxPerBlock = totalTxPerBlock / float64(len(c.blocks))
+	report.Metrics.AvgUtilization = totalUtilization / float64(len(c.blocks))
+}
+
+func (c *Collector) applyBlockBasedTPS(report *Report) {
 	var firstBlock, lastBlock uint64
 	var foundFirst bool
 	blocksWithOurTx := 0
@@ -403,20 +434,21 @@ func (c *Collector) buildReport(report *Report) *Report {
 		}
 	}
 
-	if foundFirst && lastBlock >= firstBlock {
-		report.Metrics.FirstBlockWithTx = firstBlock
-		report.Metrics.LastBlockWithTx = lastBlock
-		report.Metrics.BlockSpan = int(lastBlock-firstBlock) + 1
-		report.Metrics.BlocksWithOurTx = blocksWithOurTx
-
-		// Calculate TPS based on blocks that contain our transactions
-		// TPS = TotalConfirmed / (BlocksWithOurTx × AvgBlockTime)
-		if blocksWithOurTx > 0 && report.Metrics.AvgBlockTime.Seconds() > 0 {
-			report.Metrics.BlockBasedTPS = float64(report.Metrics.TotalConfirmed) / (float64(blocksWithOurTx) * report.Metrics.AvgBlockTime.Seconds())
-		}
+	if !foundFirst || lastBlock < firstBlock {
+		return
 	}
 
-	return report
+	report.Metrics.FirstBlockWithTx = firstBlock
+	report.Metrics.LastBlockWithTx = lastBlock
+	span := lastBlock - firstBlock + 1
+	if blockSpan, err := mathutil.Uint64ToInt(span); err == nil {
+		report.Metrics.BlockSpan = blockSpan
+	}
+	report.Metrics.BlocksWithOurTx = blocksWithOurTx
+
+	if blocksWithOurTx > 0 && report.Metrics.AvgBlockTime.Seconds() > 0 {
+		report.Metrics.BlockBasedTPS = float64(report.Metrics.TotalConfirmed) / (float64(blocksWithOurTx) * report.Metrics.AvgBlockTime.Seconds())
+	}
 }
 
 // calculateAvgLatency calculates average latency
@@ -429,21 +461,21 @@ func (c *Collector) calculateAvgLatency(latencies []time.Duration) time.Duration
 }
 
 // calculateMinMaxLatency calculates min and max latency
-func (c *Collector) calculateMinMaxLatency(latencies []time.Duration) (time.Duration, time.Duration) {
+func (c *Collector) calculateMinMaxLatency(latencies []time.Duration) (minLatency, maxLatency time.Duration) {
 	if len(latencies) == 0 {
 		return 0, 0
 	}
 
-	min, max := latencies[0], latencies[0]
+	minLatency, maxLatency = latencies[0], latencies[0]
 	for _, l := range latencies[1:] {
-		if l < min {
-			min = l
+		if l < minLatency {
+			minLatency = l
 		}
-		if l > max {
-			max = l
+		if l > maxLatency {
+			maxLatency = l
 		}
 	}
-	return min, max
+	return minLatency, maxLatency
 }
 
 // calculatePercentile calculates latency percentile

@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xmhha/txhammer/internal/txbuilder"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/0xmhha/txhammer/internal/txbuilder"
 )
 
 const (
@@ -185,11 +186,20 @@ func TestConfig_Validate(t *testing.T) {
 }
 
 // Tests for Batcher
+func mustNewBatcher(t *testing.T, client Client, cfg *Config) *Batcher {
+	t.Helper()
+	b, err := New(client, cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	return b
+}
+
 func TestNew(t *testing.T) {
 	client := &mockBatchClient{}
 
 	// With nil config
-	b1 := New(client, nil)
+	b1 := mustNewBatcher(t, client, nil)
 	if b1.config == nil {
 		t.Error("New() with nil config should use default config")
 	}
@@ -199,7 +209,7 @@ func TestNew(t *testing.T) {
 		BatchSize:     50,
 		MaxConcurrent: 10,
 	}
-	b2 := New(client, customCfg)
+	b2 := mustNewBatcher(t, client, customCfg)
 	if b2.config.BatchSize != 50 {
 		t.Error("New() should use provided config")
 	}
@@ -207,7 +217,7 @@ func TestNew(t *testing.T) {
 
 func TestBatcher_SendAll_EmptyTxs(t *testing.T) {
 	client := &mockBatchClient{}
-	batcher := New(client, DefaultConfig())
+	batcher := mustNewBatcher(t, client, DefaultConfig())
 
 	summary, err := batcher.SendAll(context.Background(), nil)
 	if err != nil {
@@ -228,7 +238,7 @@ func TestBatcher_SendAll_Success(t *testing.T) {
 		RetryCount:    0,
 		Timeout:       5 * time.Second,
 	}
-	batcher := New(client, cfg)
+	batcher := mustNewBatcher(t, client, cfg)
 
 	txs := createTestTxs(25)
 
@@ -262,7 +272,7 @@ func TestBatcher_SendAll_WithFailures(t *testing.T) {
 		RetryCount:    0,
 		Timeout:       1 * time.Second,
 	}
-	batcher := New(client, cfg)
+	batcher := mustNewBatcher(t, client, cfg)
 
 	txs := createTestTxs(10)
 
@@ -285,7 +295,7 @@ func TestBatcher_SendAll_WithFailures(t *testing.T) {
 func TestBatcher_splitIntoBatches(t *testing.T) {
 	client := &mockBatchClient{}
 	cfg := &Config{BatchSize: 10}
-	batcher := New(client, cfg)
+	batcher := mustNewBatcher(t, client, cfg)
 
 	tests := []struct {
 		name        string
@@ -328,7 +338,7 @@ func TestBatcher_GetSentCount(t *testing.T) {
 		RetryCount:    0,
 		Timeout:       5 * time.Second,
 	}
-	batcher := New(client, cfg)
+	batcher := mustNewBatcher(t, client, cfg)
 
 	txs := createTestTxs(15)
 	_, err := batcher.SendAll(context.Background(), txs)
@@ -352,7 +362,7 @@ func TestBatcher_GetFailedCount(t *testing.T) {
 		RetryCount:    0,
 		Timeout:       1 * time.Second,
 	}
-	batcher := New(client, cfg)
+	batcher := mustNewBatcher(t, client, cfg)
 
 	txs := createTestTxs(10)
 	_, _ = batcher.SendAll(context.Background(), txs)
@@ -371,7 +381,7 @@ func TestBatcher_Reset(t *testing.T) {
 		RetryCount:    0,
 		Timeout:       5 * time.Second,
 	}
-	batcher := New(client, cfg)
+	batcher := mustNewBatcher(t, client, cfg)
 
 	txs := createTestTxs(10)
 	_, _ = batcher.SendAll(context.Background(), txs)
@@ -423,7 +433,7 @@ func TestBatcher_sendBatchWithRetry(t *testing.T) {
 		RetryDelay:    10 * time.Millisecond,
 		Timeout:       5 * time.Second,
 	}
-	batcher := New(client, cfg)
+	batcher := mustNewBatcher(t, client, cfg)
 
 	rawTxs := [][]byte{{0x01}, {0x02}}
 	hashes, err := batcher.sendBatchWithRetry(context.Background(), rawTxs)
@@ -613,13 +623,14 @@ func TestStreamer_Reset(t *testing.T) {
 
 // Test types
 func TestBatchResult(t *testing.T) {
+	start := time.Now()
 	result := &BatchResult{
 		BatchIndex:   0,
 		TxCount:      10,
 		SuccessCount: 8,
 		FailedCount:  2,
-		StartTime:    time.Now(),
-		EndTime:      time.Now().Add(1 * time.Second),
+		StartTime:    start,
+		EndTime:      start.Add(1 * time.Second),
 		Duration:     1 * time.Second,
 	}
 
@@ -628,6 +639,15 @@ func TestBatchResult(t *testing.T) {
 	}
 	if result.TxCount != 10 {
 		t.Errorf("TxCount = %d, want 10", result.TxCount)
+	}
+	if result.SuccessCount != 8 {
+		t.Errorf("SuccessCount = %d, want 8", result.SuccessCount)
+	}
+	if result.FailedCount != 2 {
+		t.Errorf("FailedCount = %d, want 2", result.FailedCount)
+	}
+	if result.EndTime.Sub(result.StartTime) != result.Duration {
+		t.Errorf("Duration mismatch: got %s", result.Duration)
 	}
 }
 
@@ -644,6 +664,21 @@ func TestSummary(t *testing.T) {
 
 	if summary.TotalBatches != 5 {
 		t.Errorf("TotalBatches = %d, want 5", summary.TotalBatches)
+	}
+	if summary.TotalTxs != 100 {
+		t.Errorf("TotalTxs = %d, want 100", summary.TotalTxs)
+	}
+	if summary.SuccessCount != 95 {
+		t.Errorf("SuccessCount = %d, want 95", summary.SuccessCount)
+	}
+	if summary.FailedCount != 5 {
+		t.Errorf("FailedCount = %d, want 5", summary.FailedCount)
+	}
+	if summary.TotalDuration != 10*time.Second {
+		t.Errorf("TotalDuration = %s, want 10s", summary.TotalDuration)
+	}
+	if summary.AvgBatchTime != 2*time.Second {
+		t.Errorf("AvgBatchTime = %s, want 2s", summary.AvgBatchTime)
 	}
 	if summary.TxPerSecond != 9.5 {
 		t.Errorf("TxPerSecond = %f, want 9.5", summary.TxPerSecond)
@@ -662,8 +697,17 @@ func TestStreamResult(t *testing.T) {
 	if result.TotalTxs != 50 {
 		t.Errorf("TotalTxs = %d, want 50", result.TotalTxs)
 	}
+	if result.SuccessCount != 48 {
+		t.Errorf("SuccessCount = %d, want 48", result.SuccessCount)
+	}
 	if result.FailedCount != 2 {
 		t.Errorf("FailedCount = %d, want 2", result.FailedCount)
+	}
+	if result.TotalDuration != 5*time.Second {
+		t.Errorf("TotalDuration = %s, want 5s", result.TotalDuration)
+	}
+	if result.TxPerSecond != 9.6 {
+		t.Errorf("TxPerSecond = %f, want 9.6", result.TxPerSecond)
 	}
 }
 
@@ -683,6 +727,15 @@ func TestTxResult(t *testing.T) {
 	}
 	if result.Hash != common.HexToHash("0x1234") {
 		t.Errorf("Hash mismatch")
+	}
+	if result.Tx == nil {
+		t.Error("Tx should not be nil")
+	}
+	if result.SentAt.IsZero() {
+		t.Error("SentAt should be set")
+	}
+	if result.BatchIdx != 0 {
+		t.Errorf("BatchIdx = %d, want 0", result.BatchIdx)
 	}
 }
 

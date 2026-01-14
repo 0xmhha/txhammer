@@ -43,11 +43,11 @@ type RunResult struct {
 	Blocks     []*BlockResult `json:"blocks"`
 
 	// Gas statistics
-	TotalGasUsed  uint64  `json:"total_gas_used"`
+	TotalGasUsed          uint64  `json:"total_gas_used"`
 	AverageGasUtilization float64 `json:"average_gas_utilization"`
 
 	// Transaction details
-	TxHashes []common.Hash `json:"tx_hashes,omitempty"`
+	TxHashes       []common.Hash `json:"tx_hashes,omitempty"`
 	FailedTxHashes []common.Hash `json:"failed_tx_hashes,omitempty"`
 }
 
@@ -75,12 +75,12 @@ type GasSettings struct {
 
 // TransactionRequest represents a transaction to be built and sent
 type TransactionRequest struct {
-	From     common.Address
-	To       *common.Address
-	Value    *big.Int
-	Data     []byte
-	Nonce    uint64
-	Gas      GasSettings
+	From  common.Address
+	To    *common.Address
+	Value *big.Int
+	Data  []byte
+	Nonce uint64
+	Gas   GasSettings
 }
 
 // FeeDelegationRequest extends TransactionRequest for fee delegation

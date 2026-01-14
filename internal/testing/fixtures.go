@@ -7,6 +7,8 @@ import (
 	"github.com/0xmhha/txhammer/internal/config"
 )
 
+const testContractAddress = "0x1234567890123456789012345678901234567890"
+
 // TestConfig creates a valid test configuration
 func TestConfig(t *testing.T) *config.Config {
 	t.Helper()
@@ -44,7 +46,7 @@ func TestConfigContractCall(t *testing.T) *config.Config {
 	t.Helper()
 	cfg := TestConfig(t)
 	cfg.Mode = "CONTRACT_CALL"
-	cfg.Contract = "0x1234567890123456789012345678901234567890"
+	cfg.Contract = testContractAddress
 	cfg.Method = "transfer(address,uint256)"
 	cfg.GasLimit = 100000
 	return cfg
@@ -55,7 +57,7 @@ func TestConfigERC20(t *testing.T) *config.Config {
 	t.Helper()
 	cfg := TestConfig(t)
 	cfg.Mode = "ERC20_TRANSFER"
-	cfg.Contract = "0x1234567890123456789012345678901234567890"
+	cfg.Contract = testContractAddress
 	cfg.GasLimit = 65000
 	return cfg
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/schollz/progressbar/v3"
+
+	"github.com/0xmhha/txhammer/internal/util/progress"
 )
 
 // ERC20 function selectors
@@ -57,7 +59,7 @@ func (b *ERC20TransferBuilder) Name() string {
 }
 
 // EstimateGas estimates gas for ERC20 transfer
-func (b *ERC20TransferBuilder) EstimateGas(ctx context.Context) (uint64, error) {
+func (b *ERC20TransferBuilder) EstimateGas(_ context.Context) (uint64, error) {
 	// ERC20 transfer typically costs around 65000 gas
 	return 65000, nil
 }
@@ -143,7 +145,7 @@ func (b *ERC20TransferBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateK
 			})
 
 			nonce++
-			_ = bar.Add(1)
+			progress.Add(bar, 1)
 		}
 	}
 
@@ -166,4 +168,3 @@ func buildERC20TransferData(to common.Address, amount *big.Int) []byte {
 
 	return data
 }
-

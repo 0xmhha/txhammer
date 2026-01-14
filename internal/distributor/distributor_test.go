@@ -3,6 +3,7 @@ package distributor
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"math/big"
 	"testing"
 
@@ -44,8 +45,8 @@ func newMockClient() *mockClient {
 	return &mockClient{
 		balances:  make(map[common.Address]*big.Int),
 		nonces:    make(map[common.Address]uint64),
-		gasPrice:  big.NewInt(1000000000),  // 1 Gwei
-		gasTipCap: big.NewInt(100000000),   // 0.1 Gwei
+		gasPrice:  big.NewInt(1000000000), // 1 Gwei
+		gasTipCap: big.NewInt(100000000),  // 0.1 Gwei
 		chainID:   big.NewInt(1001),
 		sentTxs:   make([]*types.Transaction, 0),
 	}
@@ -170,7 +171,6 @@ func TestConfig_CalculateRequiredFund(t *testing.T) {
 				BufferPercent: 10,
 			},
 			wantFunc: func(result *big.Int) bool {
-				// 100000 * 5 * 2000000000 * 1.1 = 1100000000000000
 				expected := big.NewInt(1100000000000000)
 				return result.Cmp(expected) == 0
 			},
@@ -335,7 +335,7 @@ func TestDistributor_Distribute_InsufficientFunds(t *testing.T) {
 		t.Error("Distribute() expected error for insufficient funds")
 	}
 
-	if err != ErrInsufficientFunds {
+	if !errors.Is(err, ErrInsufficientFunds) {
 		t.Errorf("Distribute() error = %v, want ErrInsufficientFunds", err)
 	}
 }
@@ -451,6 +451,9 @@ func TestAccountStatus(t *testing.T) {
 	if status.RequiredFund.Cmp(requiredFund) != 0 {
 		t.Errorf("RequiredFund = %s, want %s", status.RequiredFund.String(), requiredFund.String())
 	}
+	if status.MissingFund.Cmp(big.NewInt(0)) != 0 {
+		t.Errorf("MissingFund = %s, want 0", status.MissingFund.String())
+	}
 	if status.Nonce != 5 {
 		t.Errorf("Nonce = %d, want 5", status.Nonce)
 	}
@@ -472,6 +475,9 @@ func TestDistributionResult(t *testing.T) {
 	}
 	if len(result.UnfundedAccounts) != 2 {
 		t.Errorf("UnfundedAccounts length = %d, want 2", len(result.UnfundedAccounts))
+	}
+	if result.TotalDistributed.Cmp(mustParseBigInt("1000000000000000000")) != 0 {
+		t.Errorf("TotalDistributed mismatch")
 	}
 	if result.TxCount != 5 {
 		t.Errorf("TxCount = %d, want 5", result.TxCount)

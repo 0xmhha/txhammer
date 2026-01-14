@@ -52,15 +52,15 @@ func DefaultConfig() *Config {
 		GasPerTx:      21000,
 		TxsPerAccount: 10,
 		GasPrice:      big.NewInt(1000000000), // 1 Gwei
-		BufferPercent: 20,                      // 20% buffer
+		BufferPercent: 20,                     // 20% buffer
 	}
 }
 
 // CalculateRequiredFund calculates the required fund for an account
 func (c *Config) CalculateRequiredFund() *big.Int {
-	// Required = gasPerTx * txsPerAccount * gasPrice * (1 + buffer/100)
+	// Required fund formula: gasPerTx × txsPerAccount × gasPrice × (1 + buffer/100)
 	baseCost := new(big.Int).Mul(
-		big.NewInt(int64(c.GasPerTx)),
+		new(big.Int).SetUint64(c.GasPerTx),
 		big.NewInt(int64(c.TxsPerAccount)),
 	)
 	baseCost.Mul(baseCost, c.GasPrice)

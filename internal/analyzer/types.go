@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// AnalyzerClient defines the interface for block analysis
-type AnalyzerClient interface {
+// Client defines the interface for block analysis
+type Client interface {
 	// BlockNumber returns the latest block number
 	BlockNumber(ctx context.Context) (uint64, error)
 	// BlockByNumber returns a block by its number

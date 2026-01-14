@@ -12,6 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/schollz/progressbar/v3"
+
+	"github.com/0xmhha/txhammer/internal/config"
+	"github.com/0xmhha/txhammer/internal/util/progress"
 )
 
 const (
@@ -43,11 +46,11 @@ func (b *FeeDelegationBuilder) WithRecipient(addr common.Address) *FeeDelegation
 
 // Name returns the builder name
 func (b *FeeDelegationBuilder) Name() string {
-	return "FEE_DELEGATION"
+	return string(config.ModeFeeDelegation)
 }
 
 // EstimateGas estimates gas for a fee delegation transfer
-func (b *FeeDelegationBuilder) EstimateGas(ctx context.Context) (uint64, error) {
+func (b *FeeDelegationBuilder) EstimateGas(_ context.Context) (uint64, error) {
 	// Fee delegation adds some overhead, but base transfer is still 21000
 	return 21000, nil
 }
@@ -126,7 +129,7 @@ func (b *FeeDelegationBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateK
 			})
 
 			nonce++
-			_ = bar.Add(1)
+			progress.Add(bar, 1)
 		}
 	}
 
@@ -160,7 +163,7 @@ func (b *FeeDelegationBuilder) buildFeeDelegationTx(
 		gasLimit,
 		to,
 		value,
-		[]byte{},       // data
+		[]byte{},           // data
 		types.AccessList{}, // accessList
 	}
 

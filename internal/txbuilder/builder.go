@@ -42,9 +42,9 @@ func NewBaseBuilder(config *BuilderConfig, estimator GasEstimator) *BaseBuilder 
 }
 
 // GetGasSettings returns gas settings, fetching from network if not configured
-func (b *BaseBuilder) GetGasSettings(ctx context.Context) (*big.Int, *big.Int, error) {
-	gasTipCap := b.config.GasTipCap
-	gasFeeCap := b.config.GasFeeCap
+func (b *BaseBuilder) GetGasSettings(ctx context.Context) (gasTipCap, gasFeeCap *big.Int, err error) {
+	gasTipCap = b.config.GasTipCap
+	gasFeeCap = b.config.GasFeeCap
 
 	if gasTipCap == nil && b.estimator != nil {
 		tip, err := b.estimator.SuggestGasTipCap(ctx)

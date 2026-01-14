@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/schollz/progressbar/v3"
+
+	"github.com/0xmhha/txhammer/internal/util/progress"
 )
 
 var (
@@ -155,7 +157,7 @@ func (d *Distributor) checkBalances(
 		}
 
 		statuses = append(statuses, status)
-		_ = bar.Add(1)
+		progress.Add(bar, 1)
 	}
 
 	fmt.Println()
@@ -185,7 +187,6 @@ func (d *Distributor) fundAccounts(
 		// Use configured gas price
 		gasPrice = new(big.Int).Set(d.config.GasPrice)
 	} else {
-		var err error
 		gasPrice, err = d.client.SuggestGasPrice(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to suggest gas price: %w", err)
@@ -265,7 +266,7 @@ func (d *Distributor) fundAccounts(
 		account.Balance = new(big.Int).Add(account.Balance, account.MissingFund)
 		readyAccounts = append(readyAccounts, account)
 
-		_ = bar.Add(1)
+		progress.Add(bar, 1)
 
 		// Small delay to avoid overwhelming the node
 		time.Sleep(10 * time.Millisecond)
@@ -316,7 +317,7 @@ func (d *Distributor) WaitForFunding(
 
 			if balance.Cmp(account.RequiredFund) >= 0 {
 				account.Balance = balance
-				_ = bar.Add(1)
+				progress.Add(bar, 1)
 				break
 			}
 

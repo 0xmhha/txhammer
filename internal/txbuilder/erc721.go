@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/schollz/progressbar/v3"
+
+	"github.com/0xmhha/txhammer/internal/util/progress"
 )
 
 //go:embed contracts/ZexNFTs.json
@@ -94,7 +96,7 @@ func (b *ERC721MintBuilder) Name() string {
 }
 
 // EstimateGas estimates gas for NFT minting
-func (b *ERC721MintBuilder) EstimateGas(ctx context.Context) (uint64, error) {
+func (b *ERC721MintBuilder) EstimateGas(_ context.Context) (uint64, error) {
 	// NFT minting typically needs more gas than simple transfer
 	return 150000, nil
 }
@@ -113,7 +115,9 @@ func (b *ERC721MintBuilder) DeployContract(ctx context.Context, key *ecdsa.Priva
 	}
 
 	// Combine bytecode with constructor arguments
-	deployData := append(b.deployBytecode, constructorArgs...)
+	deployData := make([]byte, len(b.deployBytecode))
+	copy(deployData, b.deployBytecode)
+	deployData = append(deployData, constructorArgs...)
 
 	gasTipCap, gasFeeCap, err := b.GetGasSettings(ctx)
 	if err != nil {
@@ -155,7 +159,9 @@ func (b *ERC721MintBuilder) GetDeployTransaction(ctx context.Context, key *ecdsa
 	}
 
 	// Combine bytecode with constructor arguments
-	deployData := append(b.deployBytecode, constructorArgs...)
+	deployData := make([]byte, len(b.deployBytecode))
+	copy(deployData, b.deployBytecode)
+	deployData = append(deployData, constructorArgs...)
 
 	gasTipCap, gasFeeCap, err := b.GetGasSettings(ctx)
 	if err != nil {
@@ -280,7 +286,7 @@ func (b *ERC721MintBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKey,
 
 			nonce++
 			tokenID++
-			_ = bar.Add(1)
+			progress.Add(bar, 1)
 		}
 	}
 

@@ -10,6 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/schollz/progressbar/v3"
+
+	"github.com/0xmhha/txhammer/internal/config"
+	"github.com/0xmhha/txhammer/internal/util/progress"
 )
 
 // TransferBuilder builds simple native coin transfer transactions (EIP-1559)
@@ -33,11 +36,11 @@ func (b *TransferBuilder) WithRecipient(addr common.Address) *TransferBuilder {
 
 // Name returns the builder name
 func (b *TransferBuilder) Name() string {
-	return "TRANSFER"
+	return string(config.ModeTransfer)
 }
 
 // EstimateGas estimates gas for a simple transfer
-func (b *TransferBuilder) EstimateGas(ctx context.Context) (uint64, error) {
+func (b *TransferBuilder) EstimateGas(_ context.Context) (uint64, error) {
 	// Simple ETH transfer is always 21000 gas
 	return 21000, nil
 }
@@ -128,7 +131,7 @@ func (b *TransferBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKey, n
 			})
 
 			nonce++
-			_ = bar.Add(1)
+			progress.Add(bar, 1)
 		}
 	}
 

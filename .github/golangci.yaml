@@ -68,7 +68,7 @@ linters-settings:
       - style
 
   goimports:
-    local-prefixes: github.com/your-org/txhammer
+    local-prefixes: github.com/0xmhha/txhammer
 
   gosec:
     excludes:
@@ -124,6 +124,10 @@ issues:
         - gosec
         - goconst
         - errcheck
+    - path: _test\.go
+      linters:
+        - revive
+      text: "unused-parameter"
 
     # Exclude known issues in generated files
     - path: ".*\\.pb\\.go"

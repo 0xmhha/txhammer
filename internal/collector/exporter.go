@@ -32,7 +32,7 @@ func NewExporter(outputDir string) *Exporter {
 // Export exports the report to the specified format
 func (e *Exporter) Export(report *Report, format ExportFormat) (string, error) {
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(e.outputDir, 0755); err != nil {
+	if err := os.MkdirAll(e.outputDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -60,7 +60,7 @@ func (e *Exporter) exportJSON(report *Report, timestamp string) (string, error) 
 		return "", fmt.Errorf("failed to marshal report: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0644); err != nil {
+	if err := os.WriteFile(filename, data, 0o600); err != nil {
 		return "", fmt.Errorf("failed to write report: %w", err)
 	}
 
@@ -93,12 +93,12 @@ type JSONSummary struct {
 
 // JSONLatency is a JSON-serializable latency metrics
 type JSONLatency struct {
-	Average string         `json:"average"`
-	Min     string         `json:"min"`
-	Max     string         `json:"max"`
-	P50     string         `json:"p50"`
-	P95     string         `json:"p95"`
-	P99     string         `json:"p99"`
+	Average   string         `json:"average"`
+	Min       string         `json:"min"`
+	Max       string         `json:"max"`
+	P50       string         `json:"p50"`
+	P95       string         `json:"p95"`
+	P99       string         `json:"p99"`
 	Histogram map[string]int `json:"histogram"`
 }
 

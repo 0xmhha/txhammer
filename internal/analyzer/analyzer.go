@@ -13,18 +13,20 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/0xmhha/txhammer/internal/util/mathutil"
 )
 
 // Analyzer provides block analysis functionality
 type Analyzer struct {
-	client AnalyzerClient
+	client Client
 	config *Config
 	blocks []BlockInfo
 	mu     sync.Mutex
 }
 
 // New creates a new Analyzer instance
-func New(client AnalyzerClient, config *Config) *Analyzer {
+func New(client Client, config *Config) *Analyzer {
 	if config == nil {
 		config = DefaultConfig()
 	}
@@ -67,33 +69,35 @@ func (a *Analyzer) Analyze(ctx context.Context) (*AnalysisResult, error) {
 	a.sortBlocks()
 
 	// Calculate metrics
-	return a.calculateMetrics(), nil
+	return a.calculateMetrics()
 }
 
 // resolveBlockRange determines the actual block range to analyze
-func (a *Analyzer) resolveBlockRange(ctx context.Context) (int64, int64, error) {
-	var startBlock, endBlock int64
-
+func (a *Analyzer) resolveBlockRange(ctx context.Context) (startBlock, endBlock int64, err error) {
 	// Get latest block if needed
 	if a.config.EndBlock == 0 || a.config.BlockRange > 0 {
-		latest, err := a.client.BlockNumber(ctx)
-		if err != nil {
-			return 0, 0, fmt.Errorf("failed to get latest block: %w", err)
+		latest, rpcErr := a.client.BlockNumber(ctx)
+		if rpcErr != nil {
+			return 0, 0, fmt.Errorf("failed to get latest block: %w", rpcErr)
 		}
-		endBlock = int64(latest)
+		endBlock, err = mathutil.Uint64ToInt64(latest)
+		if err != nil {
+			return 0, 0, fmt.Errorf("latest block overflows int64: %w", err)
+		}
 	} else {
 		endBlock = a.config.EndBlock
 	}
 
 	// Calculate start block
-	if a.config.BlockRange > 0 {
+	switch {
+	case a.config.BlockRange > 0:
 		startBlock = endBlock - a.config.BlockRange + 1
 		if startBlock < 1 {
 			startBlock = 1
 		}
-	} else if a.config.StartBlock > 0 {
+	case a.config.StartBlock > 0:
 		startBlock = a.config.StartBlock
-	} else {
+	default:
 		startBlock = 1
 	}
 
@@ -106,6 +110,10 @@ func (a *Analyzer) fetchBlockInfo(ctx context.Context, blockNum int64) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch block %d: %w", blockNum, err)
 	}
+	timestamp, err := mathutil.Uint64ToInt64(block.Time())
+	if err != nil {
+		return fmt.Errorf("block %d timestamp overflow: %w", blockNum, err)
+	}
 
 	utilization := float64(0)
 	if block.GasLimit() > 0 {
@@ -114,7 +122,7 @@ func (a *Analyzer) fetchBlockInfo(ctx context.Context, blockNum int64) error {
 
 	info := BlockInfo{
 		Number:      block.NumberU64(),
-		Timestamp:   time.Unix(int64(block.Time()), 0),
+		Timestamp:   time.Unix(timestamp, 0),
 		TxCount:     len(block.Transactions()),
 		GasLimit:    block.GasLimit(),
 		GasUsed:     block.GasUsed(),
@@ -141,9 +149,9 @@ func (a *Analyzer) sortBlocks() {
 }
 
 // calculateMetrics calculates aggregate metrics
-func (a *Analyzer) calculateMetrics() *AnalysisResult {
+func (a *Analyzer) calculateMetrics() (*AnalysisResult, error) {
 	if len(a.blocks) == 0 {
-		return &AnalysisResult{}
+		return &AnalysisResult{}, nil
 	}
 
 	result := &AnalysisResult{
@@ -158,7 +166,11 @@ func (a *Analyzer) calculateMetrics() *AnalysisResult {
 	var totalBlockTime time.Duration
 
 	for i, block := range a.blocks {
-		result.TotalTxs += uint64(block.TxCount)
+		txCount, err := mathutil.IntToUint64(block.TxCount)
+		if err != nil {
+			return nil, fmt.Errorf("block %d tx count overflow: %w", block.Number, err)
+		}
+		result.TotalTxs += txCount
 		totalGasUsed += block.GasUsed
 
 		if block.TxCount < result.MinTxPerBlock {
@@ -189,7 +201,7 @@ func (a *Analyzer) calculateMetrics() *AnalysisResult {
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 // PrintTable prints the analysis results as a table

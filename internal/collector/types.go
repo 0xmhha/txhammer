@@ -52,15 +52,15 @@ type TxInfo struct {
 
 // BlockInfo represents block-level metrics
 type BlockInfo struct {
-	Number       uint64
-	Hash         common.Hash
-	Timestamp    time.Time
-	GasLimit     uint64
-	GasUsed      uint64
-	TxCount      int
-	OurTxCount   int
-	BaseFee      *big.Int
-	Utilization  float64
+	Number      uint64
+	Hash        common.Hash
+	Timestamp   time.Time
+	GasLimit    uint64
+	GasUsed     uint64
+	TxCount     int
+	OurTxCount  int
+	BaseFee     *big.Int
+	Utilization float64
 }
 
 // Metrics represents collected performance metrics
@@ -73,32 +73,32 @@ type Metrics struct {
 	TotalTimeout   int
 
 	// Timing metrics
-	StartTime       time.Time
-	EndTime         time.Time
-	TotalDuration   time.Duration
-	AvgLatency      time.Duration
-	MinLatency      time.Duration
-	MaxLatency      time.Duration
-	P50Latency      time.Duration
-	P95Latency      time.Duration
-	P99Latency      time.Duration
+	StartTime     time.Time
+	EndTime       time.Time
+	TotalDuration time.Duration
+	AvgLatency    time.Duration
+	MinLatency    time.Duration
+	MaxLatency    time.Duration
+	P50Latency    time.Duration
+	P95Latency    time.Duration
+	P99Latency    time.Duration
 
 	// Throughput metrics
-	TPS             float64
-	ConfirmedTPS    float64
-	PeakTPS         float64
+	TPS          float64
+	ConfirmedTPS float64
+	PeakTPS      float64
 
 	// Gas metrics
-	TotalGasUsed    uint64
-	AvgGasUsed      uint64
-	TotalGasCost    *big.Int
-	AvgGasCost      *big.Int
+	TotalGasUsed uint64
+	AvgGasUsed   uint64
+	TotalGasCost *big.Int
+	AvgGasCost   *big.Int
 
 	// Block metrics
-	BlocksObserved  int
-	AvgBlockTime    time.Duration
-	AvgTxPerBlock   float64
-	AvgUtilization  float64
+	BlocksObserved int
+	AvgBlockTime   time.Duration
+	AvgTxPerBlock  float64
+	AvgUtilization float64
 
 	// Block-based TPS (transactions per block span)
 	FirstBlockWithTx uint64  // First block containing our transactions
@@ -108,7 +108,7 @@ type Metrics struct {
 	BlockBasedTPS    float64 // TotalConfirmed / (BlocksWithOurTx × AvgBlockTime)
 
 	// Success rate
-	SuccessRate     float64
+	SuccessRate float64
 }
 
 // Config holds collector configuration
@@ -147,10 +147,10 @@ func DefaultConfig() *Config {
 // Report represents the final collection report
 type Report struct {
 	// Summary
-	TestName    string
-	StartTime   time.Time
-	EndTime     time.Time
-	Duration    time.Duration
+	TestName  string
+	StartTime time.Time
+	EndTime   time.Time
+	Duration  time.Duration
 
 	// Metrics
 	Metrics *Metrics

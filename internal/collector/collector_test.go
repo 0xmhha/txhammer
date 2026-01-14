@@ -73,7 +73,7 @@ func (m *mockCollectorClient) BatchCall(batch []rpc.BatchElem) error {
 	return nil
 }
 
-func (m *mockCollectorClient) addReceipt(hash common.Hash, status uint64, gasUsed uint64) {
+func (m *mockCollectorClient) addReceipt(hash common.Hash, status, gasUsed uint64) {
 	m.receipts[hash] = &types.Receipt{
 		Status:            status,
 		GasUsed:           gasUsed,
@@ -354,39 +354,39 @@ func TestCollector_calculateMinMaxLatency(t *testing.T) {
 	collector := New(client, DefaultConfig())
 
 	tests := []struct {
-		name       string
-		latencies  []time.Duration
-		wantMin    time.Duration
-		wantMax    time.Duration
+		name      string
+		latencies []time.Duration
+		wantMin   time.Duration
+		wantMax   time.Duration
 	}{
 		{
-			name:       "normal case",
-			latencies:  []time.Duration{100 * time.Millisecond, 500 * time.Millisecond, 200 * time.Millisecond},
-			wantMin:    100 * time.Millisecond,
-			wantMax:    500 * time.Millisecond,
+			name:      "normal case",
+			latencies: []time.Duration{100 * time.Millisecond, 500 * time.Millisecond, 200 * time.Millisecond},
+			wantMin:   100 * time.Millisecond,
+			wantMax:   500 * time.Millisecond,
 		},
 		{
-			name:       "single element",
-			latencies:  []time.Duration{100 * time.Millisecond},
-			wantMin:    100 * time.Millisecond,
-			wantMax:    100 * time.Millisecond,
+			name:      "single element",
+			latencies: []time.Duration{100 * time.Millisecond},
+			wantMin:   100 * time.Millisecond,
+			wantMax:   100 * time.Millisecond,
 		},
 		{
-			name:       "empty",
-			latencies:  []time.Duration{},
-			wantMin:    0,
-			wantMax:    0,
+			name:      "empty",
+			latencies: []time.Duration{},
+			wantMin:   0,
+			wantMax:   0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			min, max := collector.calculateMinMaxLatency(tt.latencies)
-			if min != tt.wantMin {
-				t.Errorf("min = %v, want %v", min, tt.wantMin)
+			gotMin, gotMax := collector.calculateMinMaxLatency(tt.latencies)
+			if gotMin != tt.wantMin {
+				t.Errorf("min = %v, want %v", gotMin, tt.wantMin)
 			}
-			if max != tt.wantMax {
-				t.Errorf("max = %v, want %v", max, tt.wantMax)
+			if gotMax != tt.wantMax {
+				t.Errorf("max = %v, want %v", gotMax, tt.wantMax)
 			}
 		})
 	}
@@ -510,8 +510,20 @@ func TestTxInfo(t *testing.T) {
 	if info.Nonce != 10 {
 		t.Errorf("Nonce = %d, want 10", info.Nonce)
 	}
+	if info.GasLimit != 21000 {
+		t.Errorf("GasLimit = %d, want 21000", info.GasLimit)
+	}
+	if info.SentAt.IsZero() {
+		t.Error("SentAt should be set")
+	}
+	if info.ConfirmedAt.IsZero() {
+		t.Error("ConfirmedAt should be set")
+	}
 	if info.Status != TxConfirmSuccess {
 		t.Errorf("Status = %v, want SUCCESS", info.Status)
+	}
+	if info.Latency <= 0 {
+		t.Errorf("Latency should be positive, got %s", info.Latency)
 	}
 }
 
@@ -534,8 +546,26 @@ func TestBlockInfo(t *testing.T) {
 	if block.Number != 100 {
 		t.Errorf("Number = %d, want 100", block.Number)
 	}
+	if block.Hash != hash {
+		t.Errorf("Hash mismatch")
+	}
+	if block.Timestamp.IsZero() {
+		t.Error("Timestamp should be set")
+	}
+	if block.GasLimit != 30000000 {
+		t.Errorf("GasLimit = %d, want 30000000", block.GasLimit)
+	}
 	if block.GasUsed != 15000000 {
 		t.Errorf("GasUsed = %d, want 15000000", block.GasUsed)
+	}
+	if block.TxCount != 100 {
+		t.Errorf("TxCount = %d, want 100", block.TxCount)
+	}
+	if block.OurTxCount != 50 {
+		t.Errorf("OurTxCount = %d, want 50", block.OurTxCount)
+	}
+	if block.BaseFee == nil || block.BaseFee.Sign() <= 0 {
+		t.Error("BaseFee should be set")
 	}
 	if block.Utilization != 50.0 {
 		t.Errorf("Utilization = %f, want 50.0", block.Utilization)
@@ -545,24 +575,51 @@ func TestBlockInfo(t *testing.T) {
 // Tests for Metrics
 func TestMetrics(t *testing.T) {
 	metrics := &Metrics{
-		TotalSent:       100,
-		TotalConfirmed:  95,
-		TotalFailed:     3,
-		TotalPending:    1,
-		TotalTimeout:    1,
-		TPS:             50.0,
-		ConfirmedTPS:    47.5,
-		SuccessRate:     95.0,
-		TotalGasUsed:    2100000,
-		AvgGasUsed:      21000,
-		BlocksObserved:  10,
+		TotalSent:      100,
+		TotalConfirmed: 95,
+		TotalFailed:    3,
+		TotalPending:   1,
+		TotalTimeout:   1,
+		TPS:            50.0,
+		ConfirmedTPS:   47.5,
+		SuccessRate:    95.0,
+		TotalGasUsed:   2100000,
+		AvgGasUsed:     21000,
+		BlocksObserved: 10,
 	}
 
 	if metrics.TotalSent != 100 {
 		t.Errorf("TotalSent = %d, want 100", metrics.TotalSent)
 	}
+	if metrics.TotalConfirmed != 95 {
+		t.Errorf("TotalConfirmed = %d, want 95", metrics.TotalConfirmed)
+	}
+	if metrics.TotalFailed != 3 {
+		t.Errorf("TotalFailed = %d, want 3", metrics.TotalFailed)
+	}
+	if metrics.TotalPending != 1 {
+		t.Errorf("TotalPending = %d, want 1", metrics.TotalPending)
+	}
+	if metrics.TotalTimeout != 1 {
+		t.Errorf("TotalTimeout = %d, want 1", metrics.TotalTimeout)
+	}
+	if metrics.TPS != 50.0 {
+		t.Errorf("TPS = %f, want 50.0", metrics.TPS)
+	}
+	if metrics.ConfirmedTPS != 47.5 {
+		t.Errorf("ConfirmedTPS = %f, want 47.5", metrics.ConfirmedTPS)
+	}
 	if metrics.SuccessRate != 95.0 {
 		t.Errorf("SuccessRate = %f, want 95.0", metrics.SuccessRate)
+	}
+	if metrics.TotalGasUsed != 2100000 {
+		t.Errorf("TotalGasUsed = %d, want 2100000", metrics.TotalGasUsed)
+	}
+	if metrics.AvgGasUsed != 21000 {
+		t.Errorf("AvgGasUsed = %d, want 21000", metrics.AvgGasUsed)
+	}
+	if metrics.BlocksObserved != 10 {
+		t.Errorf("BlocksObserved = %d, want 10", metrics.BlocksObserved)
 	}
 }
 
@@ -591,5 +648,8 @@ func TestConfig(t *testing.T) {
 	}
 	if !cfg.BlockTrackingEnabled {
 		t.Error("BlockTrackingEnabled should be true")
+	}
+	if cfg.BlockPollInterval != 2*time.Second {
+		t.Errorf("BlockPollInterval = %v, want 2s", cfg.BlockPollInterval)
 	}
 }

@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/0xmhha/txhammer/internal/txbuilder"
 	"github.com/schollz/progressbar/v3"
 	"golang.org/x/time/rate"
+
+	"github.com/0xmhha/txhammer/internal/txbuilder"
+	"github.com/0xmhha/txhammer/internal/util/progress"
 )
 
 // StreamerConfig holds streamer configuration
@@ -31,9 +33,9 @@ type StreamerConfig struct {
 // DefaultStreamerConfig returns default streamer configuration
 func DefaultStreamerConfig() *StreamerConfig {
 	return &StreamerConfig{
-		Rate:    1000,           // 1000 tx/s
-		Burst:   100,            // burst of 100
-		Workers: 10,             // 10 workers
+		Rate:    1000, // 1000 tx/s
+		Burst:   100,  // burst of 100
+		Workers: 10,   // 10 workers
 		Timeout: 5 * time.Second,
 	}
 }
@@ -116,7 +118,7 @@ func (s *Streamer) Stream(ctx context.Context, txs []*txbuilder.SignedTx) (*Stre
 			result := s.sendSingle(ctx, signedTx)
 			results[idx] = result
 
-			_ = bar.Add(1)
+			progress.Add(bar, 1)
 		}(i, tx)
 	}
 

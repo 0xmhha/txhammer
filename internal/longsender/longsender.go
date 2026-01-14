@@ -159,7 +159,7 @@ func (l *LongSender) Run(ctx context.Context, keys []*ecdsa.PrivateKey, initialN
 }
 
 // worker is a goroutine that continuously sends transactions
-func (l *LongSender) worker(ctx context.Context, wg *sync.WaitGroup, workerID int) {
+func (l *LongSender) worker(ctx context.Context, wg *sync.WaitGroup, _ int) {
 	defer wg.Done()
 
 	for {
@@ -170,7 +170,7 @@ func (l *LongSender) worker(ctx context.Context, wg *sync.WaitGroup, workerID in
 			// Wait for rate limiter
 			if err := l.limiter.Wait(ctx); err != nil {
 				if ctx.Err() != nil {
-					return // Context cancelled
+					return // Context canceled
 				}
 				continue
 			}

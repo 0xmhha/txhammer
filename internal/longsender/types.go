@@ -23,7 +23,7 @@ type SendClient interface {
 
 // Config holds configuration for the LongSender
 type Config struct {
-	Duration time.Duration // Total test duration (0 = run until cancelled)
+	Duration time.Duration // Total test duration (0 = run until canceled)
 	TPS      float64       // Target transactions per second
 	Burst    int           // Rate limiter burst size
 	Workers  int           // Number of concurrent workers
@@ -32,10 +32,10 @@ type Config struct {
 // DefaultConfig returns default LongSender configuration
 func DefaultConfig() *Config {
 	return &Config{
-		Duration: 0,         // Run indefinitely
-		TPS:      100,       // 100 tx/s
-		Burst:    10,        // Burst of 10
-		Workers:  10,        // 10 workers
+		Duration: 0,   // Run indefinitely
+		TPS:      100, // 100 tx/s
+		Burst:    10,  // Burst of 10
+		Workers:  10,  // 10 workers
 	}
 }
 

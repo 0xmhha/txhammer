@@ -8,14 +8,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/0xmhha/txhammer/internal/config"
 )
 
 const (
-	testPrivateKey    = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	feePayerKeyHex    = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
-	testContractAddr  = "0x1234567890123456789012345678901234567890"
-	testTokenAddr     = "0xabcdef0123456789abcdef0123456789abcdef01"
+	testPrivateKey   = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	feePayerKeyHex   = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+	testContractAddr = "0x1234567890123456789012345678901234567890"
+	testTokenAddr    = "0xabcdef0123456789abcdef0123456789abcdef01"
 )
 
 // mockGasEstimator implements GasEstimator for testing
@@ -116,24 +117,24 @@ func TestDistributeTransactions(t *testing.T) {
 
 			// Verify distribution is balanced
 			if tt.numAccounts > 0 && tt.totalTxs > 0 {
-				var min, max int
+				var minCount, maxCount int
 				first := true
 				for _, count := range dist {
 					if first {
-						min, max = count, count
+						minCount, maxCount = count, count
 						first = false
 					} else {
-						if count < min {
-							min = count
+						if count < minCount {
+							minCount = count
 						}
-						if count > max {
-							max = count
+						if count > maxCount {
+							maxCount = count
 						}
 					}
 				}
 				// Difference should be at most 1
-				if max-min > 1 {
-					t.Errorf("Distribution not balanced: min=%d, max=%d", min, max)
+				if maxCount-minCount > 1 {
+					t.Errorf("Distribution not balanced: min=%d, max=%d", minCount, maxCount)
 				}
 			}
 		})

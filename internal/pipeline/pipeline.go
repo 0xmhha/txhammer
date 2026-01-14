@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/0xmhha/txhammer/internal/analyzer"
 	"github.com/0xmhha/txhammer/internal/batcher"
 	"github.com/0xmhha/txhammer/internal/client"
@@ -19,16 +20,17 @@ import (
 	"github.com/0xmhha/txhammer/internal/metrics"
 	"github.com/0xmhha/txhammer/internal/monitor"
 	"github.com/0xmhha/txhammer/internal/txbuilder"
+	"github.com/0xmhha/txhammer/internal/util/mathutil"
 	"github.com/0xmhha/txhammer/internal/wallet"
 )
 
 // Pipeline orchestrates the stress test execution
 type Pipeline struct {
-	cfg       *config.Config
-	runCfg    *RunConfig
-	client    *client.Client
-	wallet    *wallet.Wallet
-	chainID   *big.Int
+	cfg     *config.Config
+	runCfg  *RunConfig
+	client  *client.Client
+	wallet  *wallet.Wallet
+	chainID *big.Int
 
 	// Components
 	distributor *distributor.Distributor
@@ -86,76 +88,94 @@ func (p *Pipeline) Execute(ctx context.Context) (*Result, error) {
 	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// Start Prometheus metrics server if enabled
-	var metricsServer *metrics.Metrics
-	if p.cfg.MetricsEnabled {
-		metricsServer = metrics.NewMetrics("txhammer")
-		if err := metricsServer.Start(ctx, p.cfg.MetricsPort); err != nil {
-			fmt.Printf("[WARN] Failed to start metrics server: %v\n", err)
-		} else {
-			fmt.Printf("Prometheus metrics available at http://localhost:%d/metrics\n", p.cfg.MetricsPort)
-		}
-		defer func() {
-			_ = metricsServer.Stop(ctx)
-		}()
+	metricsServer, cleanup := p.setupMetrics(ctx)
+	defer cleanup()
+
+	if res, handled, err := p.handleSpecialModes(ctx, result, metricsServer); handled {
+		return res, err
 	}
 
-	// Handle special modes
-	mode := p.cfg.GetMode()
-	switch mode {
-	case config.ModeAnalyzeBlocks:
-		return p.executeAnalyzeBlocks(ctx, result)
-	case config.ModeLongSender:
-		return p.executeLongSender(ctx, result, metricsServer)
-	}
-
-	// Stage 1: Initialize
-	if err := p.runStage(ctx, result, StageInit, p.initialize); err != nil {
+	if err := p.runStandardPipeline(ctx, result); err != nil {
 		return result, err
 	}
 
-	// Stage 2: Distribute funds
+	return result, nil
+}
+
+func (p *Pipeline) setupMetrics(ctx context.Context) (server *metrics.Metrics, cleanup func()) {
+	cleanup = func() {}
+	if !p.cfg.MetricsEnabled {
+		return nil, cleanup
+	}
+
+	server = metrics.NewMetrics("txhammer")
+	if err := server.Start(ctx, p.cfg.MetricsPort); err != nil {
+		fmt.Printf("[WARN] Failed to start metrics server: %v\n", err)
+		return nil, cleanup
+	}
+
+	fmt.Printf("Prometheus metrics available at http://localhost:%d/metrics\n", p.cfg.MetricsPort)
+	cleanup = func() {
+		if err := server.Stop(ctx); err != nil {
+			fmt.Printf("[WARN] Failed to stop metrics server: %v\n", err)
+		}
+	}
+	return server, cleanup
+}
+
+func (p *Pipeline) handleSpecialModes(ctx context.Context, result *Result, metricsServer *metrics.Metrics) (*Result, bool, error) {
+	switch mode := p.cfg.GetMode(); mode {
+	case config.ModeAnalyzeBlocks:
+		res, err := p.executeAnalyzeBlocks(ctx, result)
+		return res, true, err
+	case config.ModeLongSender:
+		res, err := p.executeLongSender(ctx, result, metricsServer)
+		return res, true, err
+	case config.ModeTransfer, config.ModeFeeDelegation, config.ModeContractDeploy, config.ModeContractCall, config.ModeERC20Transfer, config.ModeERC721Mint:
+		return nil, false, nil
+	default:
+		return result, true, fmt.Errorf("unsupported mode: %s", mode)
+	}
+}
+
+func (p *Pipeline) runStandardPipeline(ctx context.Context, result *Result) error {
+	if err := p.runStage(ctx, result, StageInit, p.initialize); err != nil {
+		return err
+	}
+
 	if !p.runCfg.SkipDistribution {
 		if err := p.runStage(ctx, result, StageDistribute, p.distribute); err != nil {
-			return result, err
+			return err
 		}
 	}
 
-	// Stage 3: Build transactions
 	if err := p.runStage(ctx, result, StageBuild, p.build); err != nil {
-		return result, err
+		return err
 	}
 
-	// Dry run - stop here
 	if p.runCfg.DryRun {
 		fmt.Println("\nDry run complete - transactions built but not sent")
 		result.Finalize()
-		return result, nil
+		return nil
 	}
 
-	// Stage 4: Send transactions
 	if err := p.runStage(ctx, result, StageSend, p.send); err != nil {
-		return result, err
+		return err
 	}
 
-	// Stage 5: Collect results
 	if !p.runCfg.SkipCollection {
 		if err := p.runStage(ctx, result, StageCollect, p.collect); err != nil {
-			return result, err
+			return err
 		}
 	}
 
-	// Stage 6: Generate report
 	if err := p.runStage(ctx, result, StageReport, p.report); err != nil {
-		return result, err
+		return err
 	}
 
 	result.Finalize()
-
-	// Final summary
 	p.printFinalSummary(result)
-
-	return result, nil
+	return nil
 }
 
 // runStage executes a pipeline stage with timing and error handling
@@ -221,13 +241,11 @@ func (p *Pipeline) initialize(ctx context.Context) error {
 	fmt.Printf("\nMaster Balance: %s wei\n", masterBalance.String())
 
 	// Initialize components
-	p.initializeComponents()
-
-	return nil
+	return p.initializeComponents()
 }
 
 // initializeComponents initializes all pipeline components
-func (p *Pipeline) initializeComponents() {
+func (p *Pipeline) initializeComponents() error {
 	// Determine gas price for distributor
 	distGasPrice := big.NewInt(1000000000) // 1 Gwei default
 	if p.cfg.GasPrice != "" {
@@ -237,24 +255,39 @@ func (p *Pipeline) initializeComponents() {
 	}
 
 	// Distributor
+	if p.cfg.SubAccounts == 0 {
+		return fmt.Errorf("sub-accounts must be greater than zero")
+	}
+	txsPerAccountUint := p.cfg.Transactions / p.cfg.SubAccounts
+	txsPerAccount, err := mathutil.Uint64ToInt(txsPerAccountUint)
+	if err != nil {
+		return fmt.Errorf("transactions per account overflow: %w", err)
+	}
 	distCfg := &distributor.Config{
 		GasPerTx:      p.cfg.GasLimit,
-		TxsPerAccount: int(p.cfg.Transactions / p.cfg.SubAccounts),
+		TxsPerAccount: txsPerAccount,
 		GasPrice:      distGasPrice,
 		BufferPercent: 20,
 	}
 	p.distributor = distributor.New(p.client, distCfg)
 
 	// Batcher - optimized for maximum throughput
+	batchSize, err := mathutil.Uint64ToInt(p.cfg.BatchSize)
+	if err != nil {
+		return fmt.Errorf("batch size overflow: %w", err)
+	}
 	batchCfg := &batcher.Config{
-		BatchSize:     int(p.cfg.BatchSize),
+		BatchSize:     batchSize,
 		MaxConcurrent: 100, // Increased from 10 for parallel sending
 		BatchInterval: 0,   // Removed delay for maximum speed
 		RetryCount:    3,
 		RetryDelay:    500 * time.Millisecond,
 		Timeout:       30 * time.Second,
 	}
-	p.batcher = batcher.New(p.client, batchCfg)
+	p.batcher, err = batcher.New(p.client, batchCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create batcher: %w", err)
+	}
 
 	// Streamer (if streaming mode)
 	if p.runCfg.StreamingMode {
@@ -277,6 +310,7 @@ func (p *Pipeline) initializeComponents() {
 		BlockPollInterval:    1 * time.Second,
 	}
 	p.collector = collector.New(p.client, collCfg)
+	return nil
 }
 
 // Stage 2: Distribute funds
@@ -292,7 +326,7 @@ func (p *Pipeline) distribute(ctx context.Context) error {
 
 	// Wait for funding to confirm if any transactions were sent
 	if result.TxCount > 0 {
-		if err := p.distributor.WaitForFunding(ctx, result.ReadyAccounts, 60*time.Second); err != nil {
+		if err = p.distributor.WaitForFunding(ctx, result.ReadyAccounts, 60*time.Second); err != nil {
 			return fmt.Errorf("failed waiting for funding: %w", err)
 		}
 	}
@@ -357,9 +391,10 @@ func (p *Pipeline) build(ctx context.Context) error {
 	keys := p.wallet.SubKeys()
 	if len(p.nonces) == 0 {
 		p.nonces = make([]uint64, len(keys))
+		var nonce uint64
 		for i, key := range keys {
 			addr := crypto.PubkeyToAddress(key.PublicKey)
-			nonce, err := p.client.PendingNonceAt(ctx, addr)
+			nonce, err = p.client.PendingNonceAt(ctx, addr)
 			if err != nil {
 				return fmt.Errorf("failed to get nonce for %s: %w", addr.Hex(), err)
 			}
@@ -368,7 +403,11 @@ func (p *Pipeline) build(ctx context.Context) error {
 	}
 
 	// Build transactions
-	p.signedTxs, err = p.builder.Build(ctx, keys, p.nonces, int(p.cfg.Transactions))
+	txCount, err := mathutil.Uint64ToInt(p.cfg.Transactions)
+	if err != nil {
+		return fmt.Errorf("transaction count overflow: %w", err)
+	}
+	p.signedTxs, err = p.builder.Build(ctx, keys, p.nonces, txCount)
 	if err != nil {
 		return fmt.Errorf("failed to build transactions: %w", err)
 	}
@@ -404,8 +443,10 @@ func (p *Pipeline) createBuilder(factory *txbuilder.Factory) (txbuilder.Builder,
 
 	case config.ModeContractCall:
 		contractAddr := common.HexToAddress(p.cfg.Contract)
-		opts = append(opts, txbuilder.WithContractAddress(contractAddr))
-		opts = append(opts, txbuilder.WithMethod(p.cfg.Method))
+		opts = append(opts,
+			txbuilder.WithContractAddress(contractAddr),
+			txbuilder.WithMethod(p.cfg.Method),
+		)
 		return factory.CreateBuilder(mode, opts...)
 
 	case config.ModeERC20Transfer:
@@ -414,15 +455,19 @@ func (p *Pipeline) createBuilder(factory *txbuilder.Factory) (txbuilder.Builder,
 		return factory.CreateBuilder(mode, opts...)
 
 	case config.ModeERC721Mint:
-		opts = append(opts, txbuilder.WithNFTName(p.cfg.NFTName))
-		opts = append(opts, txbuilder.WithNFTSymbol(p.cfg.NFTSymbol))
-		opts = append(opts, txbuilder.WithTokenURI(p.cfg.TokenURI))
+		opts = append(opts,
+			txbuilder.WithNFTName(p.cfg.NFTName),
+			txbuilder.WithNFTSymbol(p.cfg.NFTSymbol),
+			txbuilder.WithTokenURI(p.cfg.TokenURI),
+		)
 		if p.cfg.Contract != "" {
 			nftAddr := common.HexToAddress(p.cfg.Contract)
 			opts = append(opts, txbuilder.WithNFTContract(nftAddr))
 		}
 		return factory.CreateBuilder(mode, opts...)
 
+	case config.ModeLongSender, config.ModeAnalyzeBlocks:
+		return nil, fmt.Errorf("mode %s does not support transaction builders", mode)
 	default:
 		return nil, fmt.Errorf("unsupported mode: %s", mode)
 	}
@@ -490,7 +535,7 @@ func (p *Pipeline) collect(ctx context.Context) error {
 }
 
 // Stage 6: Generate report
-func (p *Pipeline) report(ctx context.Context) error {
+func (p *Pipeline) report(_ context.Context) error {
 	fmt.Println("Generating final report...")
 	// Report is already generated in collect stage
 	return nil
@@ -595,9 +640,10 @@ func (p *Pipeline) executeLongSender(ctx context.Context, result *Result, metric
 	keys := p.wallet.SubKeys()
 	initialNonces := make([]uint64, len(keys))
 
+	var nonce uint64
 	for i, key := range keys {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
-		nonce, err := p.client.PendingNonceAt(ctx, addr)
+		nonce, err = p.client.PendingNonceAt(ctx, addr)
 		if err != nil {
 			result.Finalize()
 			return result, fmt.Errorf("failed to get nonce for %s: %w", addr.Hex(), err)
@@ -625,13 +671,13 @@ func (p *Pipeline) executeLongSender(ctx context.Context, result *Result, metric
 
 	// Setup callbacks for metrics and monitoring
 	callbacks := &longsender.Callbacks{
-		OnSent: func(hash common.Hash) {
+		OnSent: func(common.Hash) {
 			mon.RecordSent(1)
 			if metricsServer != nil {
 				metricsServer.RecordTxSent()
 			}
 		},
-		OnFailed: func(err error) {
+		OnFailed: func(error) {
 			mon.RecordFailed(1)
 			if metricsServer != nil {
 				metricsServer.RecordTxFailed()
@@ -689,7 +735,7 @@ func (p *Pipeline) executeLongSender(ctx context.Context, result *Result, metric
 	if err != nil {
 		if ctx.Err() != nil {
 			fmt.Println("\nLong sender stopped by user")
-			return result, nil
+			return result, ctx.Err()
 		}
 		return result, fmt.Errorf("long sender failed: %w", err)
 	}

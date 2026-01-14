@@ -87,35 +87,62 @@ var (
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	// Validate URL
+	if err := c.validateURL(); err != nil {
+		return err
+	}
+
+	mode := Mode(strings.ToUpper(c.Mode))
+	if err := c.validateCredentials(mode); err != nil {
+		return err
+	}
+	if err := c.validateMode(mode); err != nil {
+		return err
+	}
+	if err := c.validateModeSpecific(mode); err != nil {
+		return err
+	}
+	if err := c.validateNumeric(mode); err != nil {
+		return err
+	}
+
+	c.applyDefaults(mode)
+	return nil
+}
+
+func (c *Config) validateURL() error {
 	if c.URL == "" {
 		return errors.New("url is required")
 	}
 	if !httpRegex.MatchString(c.URL) && !wsRegex.MatchString(c.URL) {
 		return errors.New("url must be a valid HTTP or WebSocket URL")
 	}
+	return nil
+}
 
-	// Validate account credentials (not required for ANALYZE_BLOCKS mode)
-	mode := Mode(strings.ToUpper(c.Mode))
-	if mode != ModeAnalyzeBlocks {
-		if c.PrivateKey == "" && c.Mnemonic == "" {
-			return errors.New("either private-key or mnemonic is required")
-		}
-		if c.PrivateKey != "" && !hexKeyRegex.MatchString(c.PrivateKey) {
-			return errors.New("private-key must be a valid 64-character hex string with 0x prefix")
-		}
+func (c *Config) validateCredentials(mode Mode) error {
+	if mode == ModeAnalyzeBlocks {
+		return nil
 	}
+	if c.PrivateKey == "" && c.Mnemonic == "" {
+		return errors.New("either private-key or mnemonic is required")
+	}
+	if c.PrivateKey != "" && !hexKeyRegex.MatchString(c.PrivateKey) {
+		return errors.New("private-key must be a valid 64-character hex string with 0x prefix")
+	}
+	return nil
+}
 
-	// Validate mode (mode already declared above for account validation)
+func (c *Config) validateMode(mode Mode) error {
 	switch mode {
 	case ModeTransfer, ModeFeeDelegation, ModeContractDeploy, ModeContractCall, ModeERC20Transfer,
 		ModeLongSender, ModeAnalyzeBlocks, ModeERC721Mint:
-		// Valid modes
+		return nil
 	default:
 		return errors.New("invalid mode: must be TRANSFER, FEE_DELEGATION, CONTRACT_DEPLOY, CONTRACT_CALL, ERC20_TRANSFER, LONG_SENDER, ANALYZE_BLOCKS, or ERC721_MINT")
 	}
+}
 
-	// Validate Fee Delegation mode requirements
+func (c *Config) validateModeSpecific(mode Mode) error {
 	if mode == ModeFeeDelegation {
 		if c.FeePayerKey == "" {
 			return errors.New("fee-payer-key is required for FEE_DELEGATION mode")
@@ -125,7 +152,6 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	// Validate Contract mode requirements
 	if mode == ModeContractCall || mode == ModeERC20Transfer {
 		if c.Contract == "" {
 			return errors.New("contract address is required for CONTRACT_CALL and ERC20_TRANSFER modes")
@@ -134,53 +160,55 @@ func (c *Config) Validate() error {
 			return errors.New("contract must be a valid 40-character hex address with 0x prefix")
 		}
 	}
-
 	if mode == ModeContractCall && c.Method == "" {
 		return errors.New("method is required for CONTRACT_CALL mode")
 	}
 
-	// Validate numeric values (not required for ANALYZE_BLOCKS mode)
-	if mode != ModeAnalyzeBlocks {
-		if c.SubAccounts == 0 {
-			return errors.New("sub-accounts must be greater than 0")
-		}
-		if c.Transactions == 0 {
-			return errors.New("transactions must be greater than 0")
-		}
-		if c.BatchSize == 0 {
-			return errors.New("batch size must be greater than 0")
-		}
-		if c.GasLimit == 0 {
-			return errors.New("gas-limit must be greater than 0")
-		}
-	}
-
-	// Set default timeout
-	if c.Timeout == 0 {
-		c.Timeout = 5 * time.Minute
-	}
-
-	// Validate Long Sender mode requirements
-	if mode == ModeLongSender {
-		if c.TargetTPS <= 0 {
-			c.TargetTPS = 100 // default TPS
-		}
-		if c.Workers <= 0 {
-			c.Workers = 10 // default workers
-		}
-	}
-
-	// Validate Block Analyzer mode requirements
 	if mode == ModeAnalyzeBlocks {
-		if c.BlockStart == 0 && c.BlockEnd == 0 && c.BlockRange == 0 {
-			c.BlockRange = 100 // default to last 100 blocks
-		}
 		if c.BlockStart > 0 && c.BlockEnd > 0 && c.BlockStart > c.BlockEnd {
 			return errors.New("block-start must be less than or equal to block-end")
 		}
 	}
 
-	// Validate ERC721 Mint mode requirements
+	return nil
+}
+
+func (c *Config) validateNumeric(mode Mode) error {
+	if mode == ModeAnalyzeBlocks {
+		return nil
+	}
+	if c.SubAccounts == 0 {
+		return errors.New("sub-accounts must be greater than 0")
+	}
+	if c.Transactions == 0 {
+		return errors.New("transactions must be greater than 0")
+	}
+	if c.BatchSize == 0 {
+		return errors.New("batch size must be greater than 0")
+	}
+	if c.GasLimit == 0 {
+		return errors.New("gas-limit must be greater than 0")
+	}
+	return nil
+}
+
+func (c *Config) applyDefaults(mode Mode) {
+	if c.Timeout == 0 {
+		c.Timeout = 5 * time.Minute
+	}
+	if mode == ModeLongSender {
+		if c.TargetTPS <= 0 {
+			c.TargetTPS = 100
+		}
+		if c.Workers <= 0 {
+			c.Workers = 10
+		}
+	}
+	if mode == ModeAnalyzeBlocks {
+		if c.BlockStart == 0 && c.BlockEnd == 0 && c.BlockRange == 0 {
+			c.BlockRange = 100
+		}
+	}
 	if mode == ModeERC721Mint {
 		if c.NFTName == "" {
 			c.NFTName = "TxHammerNFT"
@@ -192,13 +220,9 @@ func (c *Config) Validate() error {
 			c.TokenURI = "https://txhammer.io/nft/"
 		}
 	}
-
-	// Set default metrics port
 	if c.MetricsEnabled && c.MetricsPort == 0 {
 		c.MetricsPort = 9090
 	}
-
-	return nil
 }
 
 // GetMode returns the parsed mode

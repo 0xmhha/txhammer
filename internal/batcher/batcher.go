@@ -9,8 +9,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/0xmhha/txhammer/internal/txbuilder"
 	"github.com/schollz/progressbar/v3"
+
+	"github.com/0xmhha/txhammer/internal/txbuilder"
+	"github.com/0xmhha/txhammer/internal/util/progress"
 )
 
 // Client interface for batch operations
@@ -30,16 +32,18 @@ type Batcher struct {
 }
 
 // New creates a new Batcher instance
-func New(client Client, config *Config) *Batcher {
+func New(client Client, config *Config) (*Batcher, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
-	_ = config.Validate()
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid batcher config: %w", err)
+	}
 
 	return &Batcher{
 		client: client,
 		config: config,
-	}
+	}, nil
 }
 
 // SendAll sends all transactions in batches
@@ -80,7 +84,7 @@ func (b *Batcher) SendAll(ctx context.Context, txs []*txbuilder.SignedTx) (*Summ
 			batchResults[idx] = result
 
 			// Update progress
-			_ = bar.Add(len(batchTxs))
+			progress.Add(bar, len(batchTxs))
 
 			// Wait between batches
 			if b.config.BatchInterval > 0 {
@@ -103,7 +107,11 @@ func (b *Batcher) SendAll(ctx context.Context, txs []*txbuilder.SignedTx) (*Summ
 
 // splitIntoBatches splits transactions into batches
 func (b *Batcher) splitIntoBatches(txs []*txbuilder.SignedTx) [][]*txbuilder.SignedTx {
-	var batches [][]*txbuilder.SignedTx
+	if len(txs) == 0 {
+		return nil
+	}
+	batchCount := (len(txs) + b.config.BatchSize - 1) / b.config.BatchSize
+	batches := make([][]*txbuilder.SignedTx, 0, batchCount)
 
 	for i := 0; i < len(txs); i += b.config.BatchSize {
 		end := i + b.config.BatchSize
@@ -196,7 +204,7 @@ func (b *Batcher) sendBatchWithRetry(ctx context.Context, rawTxs [][]byte) ([]co
 
 		lastErr = err
 
-		// Check if context is cancelled
+		// Check if context is canceled
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}

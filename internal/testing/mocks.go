@@ -84,7 +84,7 @@ func (m *MockClient) Close() {
 }
 
 // ChainID returns the configured chain ID
-func (m *MockClient) ChainID(ctx context.Context) (*big.Int, error) {
+func (m *MockClient) ChainID(_ context.Context) (*big.Int, error) {
 	m.incrementCallCount("ChainID")
 	if m.ChainIDError != nil {
 		return nil, m.ChainIDError
@@ -93,7 +93,7 @@ func (m *MockClient) ChainID(ctx context.Context) (*big.Int, error) {
 }
 
 // BlockNumber returns the configured block number
-func (m *MockClient) BlockNumber(ctx context.Context) (uint64, error) {
+func (m *MockClient) BlockNumber(_ context.Context) (uint64, error) {
 	m.incrementCallCount("BlockNumber")
 	if m.BlockNumberError != nil {
 		return 0, m.BlockNumberError
@@ -102,7 +102,7 @@ func (m *MockClient) BlockNumber(ctx context.Context) (uint64, error) {
 }
 
 // BlockByNumber returns a mock block
-func (m *MockClient) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
+func (m *MockClient) BlockByNumber(_ context.Context, number *big.Int) (*types.Block, error) {
 	m.incrementCallCount("BlockByNumber")
 	// Return a minimal block for testing
 	header := &types.Header{
@@ -114,7 +114,7 @@ func (m *MockClient) BlockByNumber(ctx context.Context, number *big.Int) (*types
 }
 
 // BalanceAt returns the configured balance
-func (m *MockClient) BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
+func (m *MockClient) BalanceAt(_ context.Context, _ common.Address, _ *big.Int) (*big.Int, error) {
 	m.incrementCallCount("BalanceAt")
 	if m.BalanceError != nil {
 		return nil, m.BalanceError
@@ -123,7 +123,7 @@ func (m *MockClient) BalanceAt(ctx context.Context, account common.Address, bloc
 }
 
 // PendingNonceAt returns the configured nonce
-func (m *MockClient) PendingNonceAt(ctx context.Context, account common.Address) (uint64, error) {
+func (m *MockClient) PendingNonceAt(_ context.Context, _ common.Address) (uint64, error) {
 	m.incrementCallCount("PendingNonceAt")
 	if m.NonceError != nil {
 		return 0, m.NonceError
@@ -132,7 +132,7 @@ func (m *MockClient) PendingNonceAt(ctx context.Context, account common.Address)
 }
 
 // SuggestGasPrice returns the configured gas price
-func (m *MockClient) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
+func (m *MockClient) SuggestGasPrice(_ context.Context) (*big.Int, error) {
 	m.incrementCallCount("SuggestGasPrice")
 	if m.GasPriceError != nil {
 		return nil, m.GasPriceError
@@ -141,7 +141,7 @@ func (m *MockClient) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 }
 
 // SuggestGasTipCap returns the configured gas tip cap
-func (m *MockClient) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+func (m *MockClient) SuggestGasTipCap(_ context.Context) (*big.Int, error) {
 	m.incrementCallCount("SuggestGasTipCap")
 	if m.GasTipCapError != nil {
 		return nil, m.GasTipCapError
@@ -150,7 +150,7 @@ func (m *MockClient) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
 }
 
 // EstimateGas returns the configured gas estimate
-func (m *MockClient) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+func (m *MockClient) EstimateGas(_ context.Context, _ *ethereum.CallMsg) (uint64, error) {
 	m.incrementCallCount("EstimateGas")
 	if m.EstimateGasError != nil {
 		return 0, m.EstimateGasError
@@ -159,7 +159,7 @@ func (m *MockClient) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uin
 }
 
 // SendTransaction stores the transaction and returns configured error
-func (m *MockClient) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+func (m *MockClient) SendTransaction(_ context.Context, tx *types.Transaction) error {
 	m.incrementCallCount("SendTransaction")
 	m.mu.Lock()
 	m.SentTransactions = append(m.SentTransactions, tx)
@@ -168,7 +168,7 @@ func (m *MockClient) SendTransaction(ctx context.Context, tx *types.Transaction)
 }
 
 // TransactionReceipt returns the receipt for a transaction
-func (m *MockClient) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+func (m *MockClient) TransactionReceipt(_ context.Context, txHash common.Hash) (*types.Receipt, error) {
 	m.incrementCallCount("TransactionReceipt")
 	if m.ReceiptError != nil {
 		return nil, m.ReceiptError
@@ -183,7 +183,7 @@ func (m *MockClient) TransactionReceipt(ctx context.Context, txHash common.Hash)
 }
 
 // HeaderByNumber returns a mock header
-func (m *MockClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+func (m *MockClient) HeaderByNumber(_ context.Context, number *big.Int) (*types.Header, error) {
 	m.incrementCallCount("HeaderByNumber")
 	return &types.Header{
 		Number:   number,
@@ -192,13 +192,13 @@ func (m *MockClient) HeaderByNumber(ctx context.Context, number *big.Int) (*type
 }
 
 // BatchCall is a mock implementation of batch RPC calls
-func (m *MockClient) BatchCall(b []rpc.BatchElem) error {
+func (m *MockClient) BatchCall(_ []rpc.BatchElem) error {
 	m.incrementCallCount("BatchCall")
 	return nil
 }
 
 // SendRawTransaction stores the raw transaction
-func (m *MockClient) SendRawTransaction(ctx context.Context, rawTx []byte) (common.Hash, error) {
+func (m *MockClient) SendRawTransaction(_ context.Context, rawTx []byte) (common.Hash, error) {
 	m.incrementCallCount("SendRawTransaction")
 	m.mu.Lock()
 	m.SentRawTxs = append(m.SentRawTxs, rawTx)
@@ -210,7 +210,7 @@ func (m *MockClient) SendRawTransaction(ctx context.Context, rawTx []byte) (comm
 }
 
 // BatchSendRawTransactions sends multiple raw transactions
-func (m *MockClient) BatchSendRawTransactions(ctx context.Context, rawTxs [][]byte) ([]common.Hash, error) {
+func (m *MockClient) BatchSendRawTransactions(_ context.Context, rawTxs [][]byte) ([]common.Hash, error) {
 	m.incrementCallCount("BatchSendRawTransactions")
 	m.mu.Lock()
 	m.SentRawTxs = append(m.SentRawTxs, rawTxs...)
@@ -228,13 +228,13 @@ func (m *MockClient) BatchSendRawTransactions(ctx context.Context, rawTxs [][]by
 }
 
 // GetBlockGasLimit returns the configured block gas limit
-func (m *MockClient) GetBlockGasLimit(ctx context.Context, blockNumber uint64) (uint64, error) {
+func (m *MockClient) GetBlockGasLimit(_ context.Context, _ uint64) (uint64, error) {
 	m.incrementCallCount("GetBlockGasLimit")
 	return m.BlockGasLimitValue, nil
 }
 
 // GetBlockGasUsed returns mock gas used
-func (m *MockClient) GetBlockGasUsed(ctx context.Context, blockNumber uint64) (uint64, error) {
+func (m *MockClient) GetBlockGasUsed(_ context.Context, _ uint64) (uint64, error) {
 	m.incrementCallCount("GetBlockGasUsed")
 	return 0, nil
 }
@@ -247,21 +247,21 @@ func (m *MockClient) AddReceipt(txHash common.Hash, receipt *types.Receipt) {
 }
 
 // CreateSuccessReceipt creates a successful receipt for testing
-func CreateSuccessReceipt(txHash common.Hash, blockNumber uint64, gasUsed uint64) *types.Receipt {
+func CreateSuccessReceipt(txHash common.Hash, blockNumber, gasUsed uint64) *types.Receipt {
 	return &types.Receipt{
 		Status:      types.ReceiptStatusSuccessful,
 		TxHash:      txHash,
-		BlockNumber: big.NewInt(int64(blockNumber)),
+		BlockNumber: new(big.Int).SetUint64(blockNumber),
 		GasUsed:     gasUsed,
 	}
 }
 
 // CreateFailedReceipt creates a failed receipt for testing
-func CreateFailedReceipt(txHash common.Hash, blockNumber uint64, gasUsed uint64) *types.Receipt {
+func CreateFailedReceipt(txHash common.Hash, blockNumber, gasUsed uint64) *types.Receipt {
 	return &types.Receipt{
 		Status:      types.ReceiptStatusFailed,
 		TxHash:      txHash,
-		BlockNumber: big.NewInt(int64(blockNumber)),
+		BlockNumber: new(big.Int).SetUint64(blockNumber),
 		GasUsed:     gasUsed,
 	}
 }

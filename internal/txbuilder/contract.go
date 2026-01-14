@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/schollz/progressbar/v3"
+
+	"github.com/0xmhha/txhammer/internal/util/progress"
 )
 
 // SimpleStorageBytecode is a simple storage contract bytecode for testing
@@ -46,7 +48,7 @@ func (b *ContractDeployBuilder) Name() string {
 }
 
 // EstimateGas estimates gas for contract deployment
-func (b *ContractDeployBuilder) EstimateGas(ctx context.Context) (uint64, error) {
+func (b *ContractDeployBuilder) EstimateGas(_ context.Context) (uint64, error) {
 	// Contract deployment needs more gas than simple transfer
 	// This is a rough estimate; actual gas depends on bytecode size
 	return 200000, nil
@@ -121,7 +123,7 @@ func (b *ContractDeployBuilder) Build(ctx context.Context, keys []*ecdsa.Private
 			})
 
 			nonce++
-			_ = bar.Add(1)
+			progress.Add(bar, 1)
 		}
 	}
 
@@ -169,7 +171,7 @@ func (b *ContractCallBuilder) Name() string {
 }
 
 // EstimateGas estimates gas for contract call
-func (b *ContractCallBuilder) EstimateGas(ctx context.Context) (uint64, error) {
+func (b *ContractCallBuilder) EstimateGas(_ context.Context) (uint64, error) {
 	// Contract calls typically need more gas
 	return 100000, nil
 }
@@ -253,7 +255,7 @@ func (b *ContractCallBuilder) Build(ctx context.Context, keys []*ecdsa.PrivateKe
 			})
 
 			nonce++
-			_ = bar.Add(1)
+			progress.Add(bar, 1)
 		}
 	}
 

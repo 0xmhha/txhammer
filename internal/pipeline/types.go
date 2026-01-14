@@ -42,11 +42,11 @@ func (s Stage) String() string {
 
 // StageResult represents the result of a pipeline stage
 type StageResult struct {
-	Stage     Stage
-	Success   bool
-	Duration  time.Duration
-	Message   string
-	Error     error
+	Stage    Stage
+	Success  bool
+	Duration time.Duration
+	Message  string
+	Error    error
 }
 
 // RunConfig holds runtime configuration for the pipeline

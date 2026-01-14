@@ -7,9 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
+
 	"github.com/0xmhha/txhammer/internal/config"
 	"github.com/0xmhha/txhammer/internal/pipeline"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -101,10 +102,12 @@ func registerFlags(cmd *cobra.Command) {
 	flags.StringVar(&cfg.TokenURI, "token-uri", "https://txhammer.io/nft/", "Base token URI for ERC721_MINT mode")
 
 	// Mark required flags
-	_ = cmd.MarkFlagRequired("url")
+	if err := cmd.MarkFlagRequired("url"); err != nil {
+		panic(fmt.Sprintf("failed to mark url flag as required: %v", err))
+	}
 }
 
-func run(cmd *cobra.Command, args []string) error {
+func run(_ *cobra.Command, _ []string) error {
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)

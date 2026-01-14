@@ -106,7 +106,7 @@ func NewMetrics(namespace string) *Metrics {
 }
 
 // Start starts the HTTP server for Prometheus metrics
-func (m *Metrics) Start(ctx context.Context, port int) error {
+func (m *Metrics) Start(_ context.Context, port int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -118,8 +118,9 @@ func (m *Metrics) Start(ctx context.Context, port int) error {
 	mux.Handle("/metrics", promhttp.Handler())
 
 	m.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: mux,
+		Addr:              fmt.Sprintf(":%d", port),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {

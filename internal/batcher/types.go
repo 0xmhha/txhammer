@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/0xmhha/txhammer/internal/txbuilder"
 )
 
@@ -57,15 +58,15 @@ type BatchResult struct {
 
 // Summary represents the overall batch operation summary
 type Summary struct {
-	TotalBatches   int
-	TotalTxs       int
-	SuccessCount   int
-	FailedCount    int
-	TotalDuration  time.Duration
-	AvgBatchTime   time.Duration
-	TxPerSecond    float64
-	BatchResults   []*BatchResult
-	FailedTxs      []*TxResult
+	TotalBatches  int
+	TotalTxs      int
+	SuccessCount  int
+	FailedCount   int
+	TotalDuration time.Duration
+	AvgBatchTime  time.Duration
+	TxPerSecond   float64
+	BatchResults  []*BatchResult
+	FailedTxs     []*TxResult
 }
 
 // Config holds batcher configuration

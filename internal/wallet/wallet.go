@@ -12,9 +12,9 @@ import (
 
 // Wallet manages accounts for stress testing
 type Wallet struct {
-	masterKey  *ecdsa.PrivateKey
-	subKeys    []*ecdsa.PrivateKey
-	hdWallet   *hdwallet.Wallet
+	masterKey   *ecdsa.PrivateKey
+	subKeys     []*ecdsa.PrivateKey
+	hdWallet    *hdwallet.Wallet
 	useMnemonic bool
 }
 
