@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/0xmhha/txhammer/internal/txbuilder"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/0xmhha/txhammer/internal/txbuilder"
 )
 
 const (
@@ -19,6 +20,7 @@ const (
 
 // mockBatchClient implements Client interface for testing
 type mockBatchClient struct {
+	mu              sync.Mutex
 	batchSendResult []common.Hash
 	batchSendErr    error
 	batchCallErr    error
@@ -26,7 +28,9 @@ type mockBatchClient struct {
 }
 
 func (m *mockBatchClient) BatchSendRawTransactions(ctx context.Context, rawTxs [][]byte) ([]common.Hash, error) {
+	m.mu.Lock()
 	m.callCount++
+	m.mu.Unlock()
 	if m.batchSendErr != nil {
 		return nil, m.batchSendErr
 	}
@@ -47,13 +51,16 @@ func (m *mockBatchClient) BatchCall(batch []rpc.BatchElem) error {
 
 // mockStreamClient implements StreamClient interface for testing
 type mockStreamClient struct {
+	mu         sync.Mutex
 	sendResult common.Hash
 	sendErr    error
 	callCount  int
 }
 
 func (m *mockStreamClient) SendRawTransaction(ctx context.Context, rawTx []byte) (common.Hash, error) {
+	m.mu.Lock()
 	m.callCount++
+	m.mu.Unlock()
 	if m.sendErr != nil {
 		return common.Hash{}, m.sendErr
 	}
@@ -281,8 +288,8 @@ func TestBatcher_splitIntoBatches(t *testing.T) {
 	batcher := New(client, cfg)
 
 	tests := []struct {
-		name       string
-		txCount    int
+		name        string
+		txCount     int
 		wantBatches int
 	}{
 		{"exact division", 30, 3},
